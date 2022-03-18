@@ -1,0 +1,24 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Show the image width and height (tab-separated, with appended filename if
+multiple are given).
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" 'IMAGE-FILESPEC [...] [-?|-h|--help]'
+}
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --)			shift;;
+esac
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+format=$'%w\t%h\n'
+[ $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
+
+exec identify -ping -format "$format" -- "$@"
