@@ -11,7 +11,7 @@ HELPTEXT
     echo
     cat <<HELPTEXT
 Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
-than SIZExSIZE|WxH.
+than SIZE|WxH.
 HELPTEXT
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt SIZE|WxH [--] IMAGE-FILE [...]'
