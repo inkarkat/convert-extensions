@@ -1,5 +1,7 @@
 #!/bin/bash
 
+: ${IMAGESIZE_SEPARATOR:=\\t}
+
 printUsage()
 {
     cat <<HELPTEXT
@@ -7,7 +9,7 @@ Show the image width and height (tab-separated) (or relative to DIFF-FILE) of
 all passed IMAGE-FILE(s) (with appended filename if multiple are given).
 HELPTEXT
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-d|--diff DIFF-FILE] [--] IMAGE-FILE [...] [-?|-h|--help]'
+    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '[-d|--diff DIFF-FILE] [--] IMAGE-FILE [...] [-?|-h|--help]'
     echo
     cat <<HELPTEXT
 Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
@@ -27,7 +29,7 @@ HELPTEXT
 
 getDimensions()
 {
-    local format=$'%w\t%h\n'
+    local format; printf -v format "%%w${IMAGESIZE_SEPARATOR:?}%%h\\n"
     [ $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
 
     identify -ping -format "$format" -- "$@" || return 4
@@ -56,7 +58,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(getDimensions "$1"); shift;;
+	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$1"); shift;;
 	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
 	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
 	-lt|-le|-eq|-ne|-ge|-gt)
@@ -77,14 +79,14 @@ if [ -n "$compareOp" ]; then
     while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
 	[ $fileWidth $compareOp $width -a $fileHeight $compareOp $height ] || compareStatus=1
-    done < <(getDimensions "$@"; printf %d "$?")
+    done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
     exit $((exitStatus > 0 ? exitStatus : compareStatus))
 elif [ -n "$diffWidth" -a -n "$diffHeight" ]; then
     exitStatus=3
     while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
-	printf "%d\\t%d${filespec:+\\t}%s\\n" "$((fileWidth - diffWidth))" "$((fileHeight - diffHeight))" "$filespec"
-    done < <(getDimensions "$@"; printf %d "$?")
+	printf "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s\\n" "$((fileWidth - diffWidth))" "$((fileHeight - diffHeight))" "$filespec"
+    done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
     exit $exitStatus
 else
     getDimensions "$@"
