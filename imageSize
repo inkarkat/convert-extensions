@@ -74,14 +74,14 @@ fi
 if [ -n "$compareOp" ]; then
     exitStatus=3
     compareStatus=0
-    while read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
+    while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
 	[ $fileWidth $compareOp $width -a $fileHeight $compareOp $height ] || compareStatus=1
     done < <(getDimensions "$@"; printf %d "$?")
     exit $((exitStatus > 0 ? exitStatus : compareStatus))
 elif [ -n "$diffWidth" -a -n "$diffHeight" ]; then
     exitStatus=3
-    while read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
+    while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
 	printf "%d\\t%d${filespec:+\\t}%s\\n" "$((fileWidth - diffWidth))" "$((fileHeight - diffHeight))" "$filespec"
     done < <(getDimensions "$@"; printf %d "$?")
