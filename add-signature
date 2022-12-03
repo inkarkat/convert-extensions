@@ -1,0 +1,68 @@
+#!/bin/bash
+
+: ${ADDSIGNATURE_EXT:=signed}
+: ${ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
+
+printUsage()
+{
+    cat <<HELPTEXT
+Add my signature to the passed PDF document(s) (to the same directory or
+TARGETDIR, with an added *.${ADDSIGNATURE_EXT}.pdf extension) so that it appears as
+if printed out and rescanned.
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" '([-%|--at VERTICAL-PERCENTAGE] [-c|--center|-r|--right] | [--geometry WxH(+-)X(+-)Y]) [-o|--to TARGETDIR] [--] PDF-FILE [...] [-?|-h|--help]'
+}
+pagePercentage=80
+alignment=West
+alignmentOffset=250
+typeset -a positionArgs=()
+targetDirspec=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--at|-%)	shift; pagePercentage=${1:?}; shift;;
+	--right|-r)	shift; alignment=East; alignmentOffset=100;;
+	--center|-c)	shift; alignment=''; alignmentOffset=0;;
+	--geometry)	shift; positionArgs=(-gravity NorthWest -geometry "${1:?}"); shift;;
+	--to|-o)	shift
+			if [ ! -d "$1" ]; then
+			    printf >&2 "ERROR: Target directory '%s' does not exist\\n" "$1"
+			    exit 2
+			fi
+			targetDirspec="${1:?}"; shift
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+elif [ ! -r "$ADDSIGNATURE_FILESPEC" ]; then
+    printf >&2 'ERROR: Signature missing at %s\n' "$ADDSIGNATURE_FILESPEC"
+    exit 3
+fi
+if [ ${#positionArgs[@]} -eq 0 ]; then
+    positionArgs=(-gravity "North${alignment}" -geometry "+${alignmentOffset:-0}+$((pagePercentage * 33))")
+fi
+
+status=0
+for pdf
+do
+    dirspec="${targetDirspec:-$(dirname -- "$pdf")}"
+    targetPdf="${dirspec}/$(fileExtension --basename --splice ".${ADDSIGNATURE_EXT}" "$pdf")"
+
+    convert \
+	-density 300 \
+	"$pdf" \
+	"$ADDSIGNATURE_FILESPEC" \
+	"${positionArgs[@]}" \
+	-compose multiply -composite \
+	"$targetPdf" || { status=$?; continue; }
+
+    printf '%s\n' "$targetPdf"
+done
+exit $status
