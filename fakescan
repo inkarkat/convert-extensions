@@ -1,0 +1,55 @@
+#!/bin/bash
+
+: ${FAKESCAN_EXT:=scanned}
+
+printUsage()
+{
+    cat <<HELPTEXT
+Convert the passed PDF document(s) (to the same directory or TARGETDIR, with an
+added *.${FAKESCAN_EXT}.pdf extension) so that it appears as if printed out and
+rescanned.
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-o|--to TARGETDIR] [--] PDF-FILE [...] [-?|-h|--help]'
+}
+targetDirspec=
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --to|-o)		shift
+			if [ ! -d "$1" ]; then
+			    printf >&2 "ERROR: Target directory '%s' does not exist\\n" "$1"
+			    exit 2
+			fi
+			targetDirspec="${1:?}"; shift
+			;;
+esac
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+status=0
+for pdf
+do
+    dirspec="${targetDirspec:-$(dirname -- "$pdf")}"
+    targetPdf="${dirspec}/$(fileExtension --basename --splice ".${FAKESCAN_EXT}" "$pdf")"
+
+    convert \
+	-density 150 \
+	"$pdf" \
+	\( +clone +noise Random -threshold 98% -negate -blur 0x1 -level 97.5%,97.5% \) \
+	-compose multiply -composite \
+	-evaluate-sequence min \
+	-blur "0x$((RANDOM % 2))" \
+	-level 25%,75% \
+	-rotate "-0.$((RANDOM % 5 + 1))" \
+	-sharpen "0x1.$((RANDOM % 9 + 1))" \
+	-blur "0x$((RANDOM % 2))" \
+	-level 10%,90% \
+	-rotate "-0.$((RANDOM % 5 + 1))" \
+	-sharpen 0x1.2 \
+	"$targetPdf" || { status=$?; continue; }
+
+    printf '%s\n' "$targetPdf"
+done
+exit $status
