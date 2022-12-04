@@ -7,8 +7,7 @@ printUsage()
 {
     cat <<HELPTEXT
 Add my signature to the passed PDF document(s) (to the same directory or
-TARGETDIR, with an added *.${ADDSIGNATURE_EXT}.pdf extension) so that it appears as
-if printed out and rescanned.
+TARGETDIR, with an added *.${ADDSIGNATURE_EXT}.pdf extension).
 HELPTEXT
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '([-%|--at VERTICAL-PERCENTAGE] [-c|--center|-r|--right] | [--geometry WxH(+-)X(+-)Y]) [-o|--to TARGETDIR] [--] PDF-FILE [...] [-?|-h|--help]'
