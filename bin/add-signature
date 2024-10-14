@@ -2,12 +2,15 @@
 
 : ${ADDSIGNATURE_EXT:=signed}
 : ${ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
-: ${ADDSIGNATURE_DPI_SCALE:=50}	# Scaling factor of the rendered signature; smaller results in smaller file sizes.
+: ${ADDSIGNATURE_DPI_SCALE:=50}	# Scaling factor of the rendered signature layer; smaller results in smaller file sizes.
+: ${ADDSIGNATURE_SIGNATURE_SCALE:=75}	# Scaling factor of the rendered signature itself.
 
 readonly scriptDir="$([ "${BASH_SOURCE[0]}" ] && dirname -- "${BASH_SOURCE[0]}" || exit 3)"
 [ -d "$scriptDir" ] || { echo >&2 'ERROR: Cannot determine script directory!'; exit 3; }
 readonly projectDir="${scriptDir}/.."
 readonly etcDir="${projectDir}/etc/$(basename -- "${BASH_SOURCE[0]}")"
+
+< <(imageSize "$ADDSIGNATURE_FILESPEC") IFS=$'\t' read -r width height
 
 printShortUsage()
 {
@@ -55,7 +58,7 @@ HELPTEXT
 isDirect=
 pagePercentage=80
 alignment=West
-alignmentOffset=$((250 * ADDSIGNATURE_DPI_SCALE / 100))
+alignmentOffset=$((250 * ADDSIGNATURE_DPI_SCALE / 100))	# Empirical value for left margin.
 typeset -a positionArgs=()
 targetDirspec=
 while [ $# -ne 0 ]
@@ -64,7 +67,7 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--direct)	shift; isDirect=t;;
 	--at|-%)	shift; pagePercentage=${1:?}; shift;;
-	--right|-r)	shift; alignment=East; alignmentOffset=$((100 * ADDSIGNATURE_DPI_SCALE / 100));;
+	--right|-r)	shift; alignment=East; alignmentOffset=$((200 * ADDSIGNATURE_DPI_SCALE / 100));;    # Empirical value for right margin; dunno why it's a bit smaller?!
 	--center|-c)	shift; alignment=''; alignmentOffset=0;;
 	--geometry)	shift; positionArgs=(-gravity NorthWest -geometry "${1:?}"); shift;;
 	--to|-o)	shift
@@ -86,8 +89,24 @@ elif [ ! -r "$ADDSIGNATURE_FILESPEC" ]; then
     printf >&2 'ERROR: Signature missing at %s\n' "$ADDSIGNATURE_FILESPEC"
     exit 3
 fi
+readonly PERCENTAGE_FACTOR=33	# Empirical factor.
 if [ ${#positionArgs[@]} -eq 0 ]; then
-    positionArgs=(-gravity "North${alignment}" -geometry "+${alignmentOffset:-0}+$((pagePercentage * 33 * ADDSIGNATURE_DPI_SCALE / 100))")
+    if [ $pagePercentage -gt 50 ]; then
+	verticalAlignment='South'
+	pagePercentage=$((100 - pagePercentage))
+    else
+	verticalAlignment='North'
+    fi
+    verticalOffset=$((pagePercentage * PERCENTAGE_FACTOR * ADDSIGNATURE_DPI_SCALE / 100))
+
+    geometry=$((width * ADDSIGNATURE_SIGNATURE_SCALE / 100 * ADDSIGNATURE_DPI_SCALE / 100))\
+'x'\
+$((height * ADDSIGNATURE_SIGNATURE_SCALE / 100 * ADDSIGNATURE_DPI_SCALE / 100))\
++${alignmentOffset:-0}\
++$((verticalOffset > 0 ? verticalOffset : 0))
+
+    positionArgs=(-gravity "${verticalAlignment}${alignment}" -geometry "$geometry")
+    printf "Info: Placing signature at %s\n" "${geometry}"
 fi
 
 status=0
