@@ -3,15 +3,43 @@
 : ${ADDSIGNATURE_EXT:=signed}
 : ${ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
 
-printUsage()
+printShortUsage()
 {
-    cat <<HELPTEXT
-Add my signature to the passed PDF document(s) (to the same directory or
-TARGETDIR, with an added *.${ADDSIGNATURE_EXT}.pdf extension).
-HELPTEXT
-    echo
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
     printf 'Usage: %q %s\n' "$(basename "$1")" '([-%|--at VERTICAL-PERCENTAGE] [-c|--center|-r|--right] | [--geometry WxH(+-)X(+-)Y]) [-o|--to TARGETDIR] [--] PDF-FILE [...] [-?|-h|--help]'
 }
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Add my signature to the passed PDF document(s) (to the same directory or
+TARGETDIR, with an added *.${ADDSIGNATURE_EXT}.pdf extension).
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --at|-% VERTICAL-PERCENTAGE
+			The vertical percentage of the page where the signature
+			should be placed. Default is ${pagePercentage}% from the top.
+    --center|-c		Place the signature in the center of the page. Default
+			is ${alignment}.
+    --right|-r		Place the signature on the right side of the page.
+    --geometry WxH(+-)X(+-)Y
+			Place the signature at X/Y with a size of WxH.
+    --to|-o TARGETDIR	Place the signed PDFs in the specified directory.
+HELPTEXT
+}
+
 pagePercentage=80
 alignment=West
 alignmentOffset=250
@@ -20,7 +48,7 @@ targetDirspec=
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--at|-%)	shift; pagePercentage=${1:?}; shift;;
 	--right|-r)	shift; alignment=East; alignmentOffset=100;;
 	--center|-c)	shift; alignment=''; alignmentOffset=0;;
