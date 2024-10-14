@@ -2,6 +2,7 @@
 
 : ${ADDSIGNATURE_EXT:=signed}
 : ${ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
+: ${ADDSIGNATURE_DPI_SCALE:=50}	# Scaling factor of the rendered signature; smaller results in smaller file sizes.
 
 readonly scriptDir="$([ "${BASH_SOURCE[0]}" ] && dirname -- "${BASH_SOURCE[0]}" || exit 3)"
 [ -d "$scriptDir" ] || { echo >&2 'ERROR: Cannot determine script directory!'; exit 3; }
@@ -54,7 +55,7 @@ HELPTEXT
 isDirect=
 pagePercentage=80
 alignment=West
-alignmentOffset=250
+alignmentOffset=$((250 * ADDSIGNATURE_DPI_SCALE / 100))
 typeset -a positionArgs=()
 targetDirspec=
 while [ $# -ne 0 ]
@@ -63,7 +64,7 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--direct)	shift; isDirect=t;;
 	--at|-%)	shift; pagePercentage=${1:?}; shift;;
-	--right|-r)	shift; alignment=East; alignmentOffset=100;;
+	--right|-r)	shift; alignment=East; alignmentOffset=$((100 * ADDSIGNATURE_DPI_SCALE / 100));;
 	--center|-c)	shift; alignment=''; alignmentOffset=0;;
 	--geometry)	shift; positionArgs=(-gravity NorthWest -geometry "${1:?}"); shift;;
 	--to|-o)	shift
@@ -86,7 +87,7 @@ elif [ ! -r "$ADDSIGNATURE_FILESPEC" ]; then
     exit 3
 fi
 if [ ${#positionArgs[@]} -eq 0 ]; then
-    positionArgs=(-gravity "North${alignment}" -geometry "+${alignmentOffset:-0}+$((pagePercentage * 33))")
+    positionArgs=(-gravity "North${alignment}" -geometry "+${alignmentOffset:-0}+$((pagePercentage * 33 * ADDSIGNATURE_DPI_SCALE / 100))")
 fi
 
 status=0
@@ -103,10 +104,13 @@ do
     fi
 
     convert \
-	-density 300 \
+	-density $((300 * ADDSIGNATURE_DPI_SCALE / 100)) \
 	"$sourcePdf" \
-	"$ADDSIGNATURE_FILESPEC" \
-	"${positionArgs[@]}" \
+	\( \
+	    "$ADDSIGNATURE_FILESPEC" \
+	    -resize "${ADDSIGNATURE_DPI_SCALE}%" \
+	    "${positionArgs[@]}" \
+	\) \
 	-compose multiply -composite \
 	"$conversionTarget" || { status=$?; continue; }
 
