@@ -2,28 +2,73 @@
 
 : ${ADDSIGNATURE_EXT:=signed}
 : ${ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
+: ${ADDSIGNATURE_DPI_SCALE:=50}	# Scaling factor of the rendered signature layer; smaller results in smaller file sizes.
+: ${ADDSIGNATURE_SIGNATURE_SCALE:=75}	# Scaling factor of the rendered signature itself.
 
+readonly scriptDir="$([ "${BASH_SOURCE[0]}" ] && dirname -- "${BASH_SOURCE[0]}" || exit 3)"
+[ -d "$scriptDir" ] || { echo >&2 'ERROR: Cannot determine script directory!'; exit 3; }
+readonly projectDir="${scriptDir}/.."
+readonly etcDir="${projectDir}/etc/$(basename -- "${BASH_SOURCE[0]}")"
+
+< <(imageSize "$ADDSIGNATURE_FILESPEC") IFS=$'\t' read -r width height
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--direct] ([-%|--at VERTICAL-PERCENTAGE] [-c|--center|-r|--right] | [--geometry [WxH](+-)X(+-)Y]) [-o|--to TARGETDIR] [--] PDF-FILE [...] [-?|-h|--help]'
+}
 printUsage()
 {
-    cat <<HELPTEXT
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
 Add my signature to the passed PDF document(s) (to the same directory or
 TARGETDIR, with an added *.${ADDSIGNATURE_EXT}.pdf extension).
-HELPTEXT
+HELPDESCRIPTION
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '([-%|--at VERTICAL-PERCENTAGE] [-c|--center|-r|--right] | [--geometry WxH(+-)X(+-)Y]) [-o|--to TARGETDIR] [--] PDF-FILE [...] [-?|-h|--help]'
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --direct		Directly add the signature to the PDF file, instead of
+			adding and overlaying a separate page. This converts the
+			entire PDF from text to image format, resulting in a
+			larger file size. Only do this if the original PDF isn't
+			text-based or if you explicitly want to turn it into an
+			image.
+    --at|-% VERTICAL-PERCENTAGE
+			The vertical percentage of the page where the signature
+			should be placed. Default is ${pagePercentage}% from the top.
+    --center|-c		Place the signature in the center of the page. Default
+			is ${horizontalAlignment}.
+    --right|-r		Place the signature on the right side of the page.
+    --geometry [WxH](+-)X(+-)Y
+			Place the signature at X/Y [with a size of WxH].
+    --to|-o TARGETDIR	Place the signed PDFs in the specified directory.
+HELPTEXT
 }
+
+isDirect=
 pagePercentage=80
-alignment=West
-alignmentOffset=250
+horizontalAlignment=West
+alignmentOffset=$((250 * ADDSIGNATURE_DPI_SCALE / 100))	# Empirical value for left margin.
 typeset -a positionArgs=()
 targetDirspec=
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--direct)	shift; isDirect=t;;
 	--at|-%)	shift; pagePercentage=${1:?}; shift;;
-	--right|-r)	shift; alignment=East; alignmentOffset=100;;
-	--center|-c)	shift; alignment=''; alignmentOffset=0;;
+	--right|-r)	shift; horizontalAlignment=East; alignmentOffset=$((200 * ADDSIGNATURE_DPI_SCALE / 100));;    # Empirical value for right margin; dunno why it's a bit smaller?!
+	--center|-c)	shift; horizontalAlignment=''; alignmentOffset=0;;
 	--geometry)	shift; positionArgs=(-gravity NorthWest -geometry "${1:?}"); shift;;
 	--to|-o)	shift
 			if [ ! -d "$1" ]; then
@@ -44,8 +89,25 @@ elif [ ! -r "$ADDSIGNATURE_FILESPEC" ]; then
     printf >&2 'ERROR: Signature missing at %s\n' "$ADDSIGNATURE_FILESPEC"
     exit 3
 fi
+
+readonly PERCENTAGE_FACTOR=33	# Empirical factor.
 if [ ${#positionArgs[@]} -eq 0 ]; then
-    positionArgs=(-gravity "North${alignment}" -geometry "+${alignmentOffset:-0}+$((pagePercentage * 33))")
+    if [ $pagePercentage -gt 50 ]; then
+	verticalAlignment='South'
+	pagePercentage=$((100 - pagePercentage))
+    else
+	verticalAlignment='North'
+    fi
+    verticalOffset=$((pagePercentage * PERCENTAGE_FACTOR * ADDSIGNATURE_DPI_SCALE / 100))
+
+    geometry=$((width * ADDSIGNATURE_SIGNATURE_SCALE / 100 * ADDSIGNATURE_DPI_SCALE / 100))\
+'x'\
+$((height * ADDSIGNATURE_SIGNATURE_SCALE / 100 * ADDSIGNATURE_DPI_SCALE / 100))\
++${alignmentOffset:-0}\
++$((verticalOffset > 0 ? verticalOffset : 0))
+
+    positionArgs=(-gravity "${verticalAlignment}${horizontalAlignment}" -geometry "$geometry")
+    printf "Info: Placing signature at %s\n" "${geometry}"
 fi
 
 status=0
@@ -53,14 +115,30 @@ for pdf
 do
     dirspec="${targetDirspec:-$(dirname -- "$pdf")}"
     targetPdf="${dirspec}/$(fileExtension --basename --splice ".${ADDSIGNATURE_EXT}" "$pdf")"
+    if [ "$isDirect" ]; then
+	sourcePdf="$pdf"
+	conversionTarget="$targetPdf"
+    else
+	sourcePdf="${etcDir}/blank.pdf"
+	conversionTarget="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX.pdf" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$${RANDOM}.pdf")"
+    fi
 
     convert \
-	-density 300 \
-	"$pdf" \
-	"$ADDSIGNATURE_FILESPEC" \
-	"${positionArgs[@]}" \
+	-density $((300 * ADDSIGNATURE_DPI_SCALE / 100)) \
+	"$sourcePdf" \
+	\( \
+	    "$ADDSIGNATURE_FILESPEC" \
+	    -resize "${ADDSIGNATURE_DPI_SCALE}%" \
+	    "${positionArgs[@]}" \
+	\) \
 	-compose multiply -composite \
-	"$targetPdf" || { status=$?; continue; }
+	"$conversionTarget" || { status=$?; continue; }
+
+    if [ ! "$isDirect" ]; then
+	# Taken from pdfletterhead.
+	qpdf --overlay "$conversionTarget" --to=1 -- "$pdf" "$targetPdf" || { status=$?; continue; }
+	[ "${DEBUG:-}" ] || rm --force -- "$conversionTarget"
+    fi
 
     printf '%s\n' "$targetPdf"
 done
