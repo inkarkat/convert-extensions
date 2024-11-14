@@ -12,19 +12,20 @@ printUsage()
 }
 
 typeset -a addSignatureArgs=()
-typeset -a tempdirPipeArgs=()
+typeset -a tempdirPipeOutputArg=(--output-to-origin)
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
 
-	--to|-o)	shift; tempdirPipeArgs+=(--output-dir "$1"); shift;;
+	--to|-o)	shift; tempdirPipeOutputArg=(--output-dir "${1:?}"); shift;;
 
 	-+([rc]))	addSignatureArgs+=("$1"); shift;;
 	--@(right|center))
 			addSignatureArgs+=("$1"); shift;;
 	-[%])		addSignatureArgs+=("$1" "$2"); shift; shift;;
-	--@(geometry))	addSignatureArgs+=("$1" "$2"); shift; shift;;
+	--@(at|geometry))
+			addSignatureArgs+=("$1" "$2"); shift; shift;;
 	--)		shift; break;;
 	*)		break;;
     esac
@@ -34,7 +35,7 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
-exec tempdirPipe --with-header "${tempdirPipeArgs[@]}" \
-    --exec add-signature "${addSignatureArgs[@]}" --to '{O}' -- '{ii}' \; \
+exec tempdirPipe --with-header "${tempdirPipeOutputArg[@]}" \
+    --exec add-signature "${addSignatureArgs[@]}" --direct --to '{O}' -- '{ii}' \; \
     --exec fakescan --to '{O}' -- '{ii}' \; \
     -- "$@"

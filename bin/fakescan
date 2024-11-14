@@ -43,7 +43,7 @@ do
     convert \
 	-density 150 \
 	"$pdf" \
-	\( +clone +noise Random -threshold 98% -negate -blur 0x1 -level 97.5%,97.5% \) \
+	\( +clone +noise Random -threshold 98% -negate -level 98%,98% \) \
 	-compose multiply -composite \
 	-evaluate-sequence min \
 	-blur "0x$((RANDOM % 2))" \
@@ -54,6 +54,7 @@ do
 	-level 10%,90% \
 	-rotate "-0.$((RANDOM % 5 + 1))" \
 	-sharpen 0x1.2 \
+	-modulate 100,$((RANDOM % 40 + 50)),100 \
 	"$targetPdf" || { status=$?; continue; }
 
     printf '%s\n' "$targetPdf"
