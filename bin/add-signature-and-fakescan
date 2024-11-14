@@ -36,6 +36,6 @@ if [ $# -eq 0 ]; then
 fi
 
 exec tempdirPipe --with-header "${tempdirPipeOutputArg[@]}" \
-    --exec add-signature "${addSignatureArgs[@]}" --to '{O}' -- '{ii}' \; \
+    --exec add-signature "${addSignatureArgs[@]}" --direct --to '{O}' -- '{ii}' \; \
     --exec fakescan --to '{O}' -- '{ii}' \; \
     -- "$@"
