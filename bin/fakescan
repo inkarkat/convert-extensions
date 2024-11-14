@@ -54,6 +54,7 @@ do
 	-level 10%,90% \
 	-rotate "-0.$((RANDOM % 5 + 1))" \
 	-sharpen 0x1.2 \
+	-modulate 100,$((RANDOM % 40 + 50)),100 \
 	"$targetPdf" || { status=$?; continue; }
 
     printf '%s\n' "$targetPdf"
