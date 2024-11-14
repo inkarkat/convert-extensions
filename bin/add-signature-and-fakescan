@@ -24,7 +24,8 @@ do
 	--@(right|center))
 			addSignatureArgs+=("$1"); shift;;
 	-[%])		addSignatureArgs+=("$1" "$2"); shift; shift;;
-	--@(geometry))	addSignatureArgs+=("$1" "$2"); shift; shift;;
+	--@(at|geometry))
+			addSignatureArgs+=("$1" "$2"); shift; shift;;
 	--)		shift; break;;
 	*)		break;;
     esac
