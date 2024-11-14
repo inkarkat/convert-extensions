@@ -40,6 +40,7 @@ do
     dirspec="${targetDirspec:-$(dirname -- "$imageFilespec")}"
     targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKESCAN_EXT}" "$imageFilespec")"
 
+    randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
     convert \
 	-density 150 \
 	"$imageFilespec" \
@@ -48,7 +49,7 @@ do
 	-evaluate-sequence min \
 	-blur "0x$((RANDOM % 2))" \
 	-level 25%,75% \
-	-rotate "-0.$((RANDOM % 5 + 1))" \
+	-rotate "${randomSign}0.$((RANDOM % 5 + 1))" \
 	-sharpen "0x1.$((RANDOM % 9 + 1))" \
 	-blur "0x$((RANDOM % 2))" \
 	-level 10%,90% \
