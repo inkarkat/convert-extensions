@@ -5,12 +5,12 @@
 printUsage()
 {
     cat <<HELPTEXT
-Convert the passed PDF document(s) (to the same directory or TARGETDIR, with an
-added *.${FAKESCAN_EXT}.pdf extension) so that it appears as if printed out and
+Convert the passed IMAGE(es) (to the same directory or TARGETDIR, with an added
+*.${FAKESCAN_EXT}.* extension) so that it appears as if printed out and
 rescanned.
 HELPTEXT
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-o|--to TARGETDIR] [--] PDF-FILE [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-o|--to TARGETDIR] [--] IMAGE [...] [-?|-h|--help]'
 }
 targetDirspec=
 while [ $# -ne 0 ]
@@ -35,14 +35,14 @@ if [ $# -eq 0 ]; then
 fi
 
 status=0
-for pdf
+for imageFilespec
 do
-    dirspec="${targetDirspec:-$(dirname -- "$pdf")}"
-    targetPdf="${dirspec}/$(fileExtension --basename --splice ".${FAKESCAN_EXT}" "$pdf")"
+    dirspec="${targetDirspec:-$(dirname -- "$imageFilespec")}"
+    targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKESCAN_EXT}" "$imageFilespec")"
 
     convert \
 	-density 150 \
-	"$pdf" \
+	"$imageFilespec" \
 	\( +clone +noise Random -threshold 98% -negate -level 98%,98% \) \
 	-compose multiply -composite \
 	-evaluate-sequence min \
@@ -55,8 +55,8 @@ do
 	-rotate "-0.$((RANDOM % 5 + 1))" \
 	-sharpen 0x1.2 \
 	-modulate 100,$((RANDOM % 40 + 50)),100 \
-	"$targetPdf" || { status=$?; continue; }
+	"$targetFilespec" || { status=$?; continue; }
 
-    printf '%s\n' "$targetPdf"
+    printf '%s\n' "$targetFilespec"
 done
 exit $status
