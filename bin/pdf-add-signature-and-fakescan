@@ -3,11 +3,11 @@ shopt -qs extglob
 
 printUsage()
 {
-    add-signature --help 2>&1 | sed \
+    pdf-add-signature --help 2>&1 | sed \
 	-e "1s#^.*\$#Add my signature to the passed PDF document(s) (to the current working directory or TARGETDIR, with added *.${FAKESCAN_EXT:-scanned}.${ADDSIGNATURE_EXT:-signed}.pdf extension) so that it appears as if printed out, signed, and then rescanned.#" \
 	-e '2b removeFirstParagraphLoop' \
-	-e '/^Usage:$/N' -e '/\(^\|\n\)Usage: */{ s/\(^\|\n\)\(Usage: *\)\?\([^ ]\+ \)*add-signature /\1\2'"$(basename "$1")"' /; }' \
-	-e '/^Example:$/N' -e '/\(^\|\n\)Example: */{ s/\(^\|\n\)\(Example: *\)\?add-signature /\1\2'"$(basename "$1") /; }" \
+	-e '/^Usage:$/N' -e '/\(^\|\n\)Usage: */{ s/\(^\|\n\)\(Usage: *\)\?\([^ ]\+ \)*pdf-add-signature /\1\2'"$(basename "$1")"' /; }' \
+	-e '/^Example:$/N' -e '/\(^\|\n\)Example: */{ s/\(^\|\n\)\(Example: *\)\?pdf-add-signature /\1\2'"$(basename "$1") /; }" \
 	-e b -e :removeFirstParagraphLoop -e '{ /\(^\|\n\)$/{ s/^\(.*\n\)\?//; b; }; N; b removeFirstParagraphLoop; }'
 }
 
@@ -36,6 +36,6 @@ if [ $# -eq 0 ]; then
 fi
 
 exec tempdirPipe --with-header "${tempdirPipeOutputArg[@]}" \
-    --exec add-signature "${addSignatureArgs[@]}" --direct --to '{O}' -- '{ii}' \; \
+    --exec pdf-add-signature "${addSignatureArgs[@]}" --direct --to '{O}' -- '{ii}' \; \
     --exec fakescan --to '{O}' -- '{ii}' \; \
     -- "$@"

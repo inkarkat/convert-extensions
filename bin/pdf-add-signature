@@ -1,16 +1,16 @@
 #!/bin/bash
 
-: ${ADDSIGNATURE_EXT:=signed}
-: ${ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
-: ${ADDSIGNATURE_DPI_SCALE:=50}	# Scaling factor of the rendered signature layer; smaller results in smaller file sizes.
-: ${ADDSIGNATURE_SIGNATURE_SCALE:=75}	# Scaling factor of the rendered signature itself.
+: ${PDF_ADDSIGNATURE_EXT:=signed}
+: ${PDF_ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
+: ${PDF_ADDSIGNATURE_DPI_SCALE:=50}	# Scaling factor of the rendered signature layer; smaller results in smaller file sizes.
+: ${PDF_ADDSIGNATURE_SIGNATURE_SCALE:=75}	# Scaling factor of the rendered signature itself.
 
 readonly scriptDir="$([ "${BASH_SOURCE[0]}" ] && dirname -- "${BASH_SOURCE[0]}" || exit 3)"
 [ -d "$scriptDir" ] || { echo >&2 'ERROR: Cannot determine script directory!'; exit 3; }
 readonly projectDir="${scriptDir}/.."
 readonly etcDir="${projectDir}/etc/$(basename -- "${BASH_SOURCE[0]}")"
 
-< <(imageSize "$ADDSIGNATURE_FILESPEC") IFS=$'\t' read -r width height
+< <(imageSize "$PDF_ADDSIGNATURE_FILESPEC") IFS=$'\t' read -r width height
 
 printShortUsage()
 {
@@ -31,7 +31,7 @@ printLongUsage()
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
 Add my signature to the passed PDF document(s) (to the same directory or
-TARGETDIR, with an added *.${ADDSIGNATURE_EXT}.pdf extension).
+TARGETDIR, with an added *.${PDF_ADDSIGNATURE_EXT}.pdf extension).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -58,7 +58,7 @@ HELPTEXT
 isDirect=
 pagePercentage=80
 horizontalAlignment=West
-alignmentOffset=$((250 * ADDSIGNATURE_DPI_SCALE / 100))	# Empirical value for left margin.
+alignmentOffset=$((250 * PDF_ADDSIGNATURE_DPI_SCALE / 100))	# Empirical value for left margin.
 typeset -a positionArgs=()
 targetDirspec=
 while [ $# -ne 0 ]
@@ -67,7 +67,7 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--direct)	shift; isDirect=t;;
 	--at|-%)	shift; pagePercentage=${1:?}; shift;;
-	--right|-r)	shift; horizontalAlignment=East; alignmentOffset=$((200 * ADDSIGNATURE_DPI_SCALE / 100));;    # Empirical value for right margin; dunno why it's a bit smaller?!
+	--right|-r)	shift; horizontalAlignment=East; alignmentOffset=$((200 * PDF_ADDSIGNATURE_DPI_SCALE / 100));;    # Empirical value for right margin; dunno why it's a bit smaller?!
 	--center|-c)	shift; horizontalAlignment=''; alignmentOffset=0;;
 	--geometry)	shift; positionArgs=(-gravity NorthWest -geometry "${1:?}"); shift;;
 	--to|-o)	shift
@@ -85,8 +85,8 @@ done
 if [ $# -eq 0 ]; then
     printUsage "$0" >&2
     exit 2
-elif [ ! -r "$ADDSIGNATURE_FILESPEC" ]; then
-    printf >&2 'ERROR: Signature missing at %s\n' "$ADDSIGNATURE_FILESPEC"
+elif [ ! -r "$PDF_ADDSIGNATURE_FILESPEC" ]; then
+    printf >&2 'ERROR: Signature missing at %s\n' "$PDF_ADDSIGNATURE_FILESPEC"
     exit 3
 fi
 
@@ -98,11 +98,11 @@ if [ ${#positionArgs[@]} -eq 0 ]; then
     else
 	verticalAlignment='North'
     fi
-    verticalOffset=$((pagePercentage * PERCENTAGE_FACTOR * ADDSIGNATURE_DPI_SCALE / 100))
+    verticalOffset=$((pagePercentage * PERCENTAGE_FACTOR * PDF_ADDSIGNATURE_DPI_SCALE / 100))
 
-    geometry=$((width * ADDSIGNATURE_SIGNATURE_SCALE / 100 * ADDSIGNATURE_DPI_SCALE / 100))\
+    geometry=$((width * PDF_ADDSIGNATURE_SIGNATURE_SCALE / 100 * PDF_ADDSIGNATURE_DPI_SCALE / 100))\
 'x'\
-$((height * ADDSIGNATURE_SIGNATURE_SCALE / 100 * ADDSIGNATURE_DPI_SCALE / 100))\
+$((height * PDF_ADDSIGNATURE_SIGNATURE_SCALE / 100 * PDF_ADDSIGNATURE_DPI_SCALE / 100))\
 +${alignmentOffset:-0}\
 +$((verticalOffset > 0 ? verticalOffset : 0))
 
@@ -114,7 +114,7 @@ status=0
 for pdf
 do
     dirspec="${targetDirspec:-$(dirname -- "$pdf")}"
-    targetPdf="${dirspec}/$(fileExtension --basename --splice ".${ADDSIGNATURE_EXT}" "$pdf")"
+    targetPdf="${dirspec}/$(fileExtension --basename --splice ".${PDF_ADDSIGNATURE_EXT}" "$pdf")"
     if [ "$isDirect" ]; then
 	sourcePdf="$pdf"
 	conversionTarget="$targetPdf"
@@ -124,11 +124,11 @@ do
     fi
 
     convert \
-	-density $((300 * ADDSIGNATURE_DPI_SCALE / 100)) \
+	-density $((300 * PDF_ADDSIGNATURE_DPI_SCALE / 100)) \
 	"$sourcePdf" \
 	\( \
-	    "$ADDSIGNATURE_FILESPEC" \
-	    -resize "${ADDSIGNATURE_DPI_SCALE}%" \
+	    "$PDF_ADDSIGNATURE_FILESPEC" \
+	    -resize "${PDF_ADDSIGNATURE_DPI_SCALE}%" \
 	    "${positionArgs[@]}" \
 	\) \
 	-compose multiply -composite \
