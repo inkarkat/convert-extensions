@@ -71,7 +71,7 @@ do
 		-resize "$resizeSize" \
 		-gravity center \
 		-write mpr:image +delete \
-		mpr:image -background black -shadow 5x9+10+10 \
+		mpr:image -background black -shadow "$((RANDOM % 80 + 15))x9+10+10" \
 	    \) \
 	    mpr:image -geometry +10+10 -composite \
 	\) \
