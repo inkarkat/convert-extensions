@@ -41,6 +41,8 @@ if [ $# -eq 0 ]; then
 fi
 
 backgroundAspectRatio=$(imageAspectRatio -- "$FAKEPHOTO_BACKGROUND") || exit 3
+< <(imageSize -- "$FAKEPHOTO_BACKGROUND") IFS=$'\t' read -r backgroundWidth backgroundHeight
+insertSize="$((backgroundWidth * 80 / 100))x$((backgroundHeight * 80 / 100))"
 
 status=0
 for imageFilespec
@@ -49,9 +51,12 @@ do
     targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKEPHOTO_EXT}" "$imageFilespec")"
 
     typeset -a rotationArgs=()
+    resizeSize="$insertSize"
     imageAspectRatio=$(imageAspectRatio -- "$imageFilespec") || status=3
-    (( (imageAspectRatio < 100 && backgroundAspectRatio > 100) || (imageAspectRatio > 100 && backgroundAspectRatio < 100) )) \
-	&& rotationArgs=(-rotate 90)
+    if (( (imageAspectRatio < 100 && backgroundAspectRatio > 100) || (imageAspectRatio > 100 && backgroundAspectRatio < 100) )); then
+	rotationArgs=(-rotate 90)
+	resizeSize="${insertSize#*x}x${insertSize%x*}"
+    fi
 
     randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
     convert \
@@ -61,6 +66,8 @@ do
 	\( \
 	    \( \
 		"$imageFilespec" \
+		-resize "$resizeSize" \
+		-gravity center \
 		-write mpr:image +delete \
 		mpr:image -background black -shadow 5x9+10+10 \
 	    \) \
