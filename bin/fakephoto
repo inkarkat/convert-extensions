@@ -40,16 +40,24 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
+backgroundAspectRatio=$(imageAspectRatio -- "$FAKEPHOTO_BACKGROUND") || exit 3
+
 status=0
 for imageFilespec
 do
     dirspec="${targetDirspec:-$(dirname -- "$imageFilespec")}"
     targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKEPHOTO_EXT}" "$imageFilespec")"
 
+    typeset -a rotationArgs=()
+    imageAspectRatio=$(imageAspectRatio -- "$imageFilespec") || status=3
+    (( (imageAspectRatio < 100 && backgroundAspectRatio > 100) || (imageAspectRatio > 100 && backgroundAspectRatio < 100) )) \
+	&& rotationArgs=(-rotate 90)
+
     randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
     convert \
 	-density 150 \
 	"$FAKEPHOTO_BACKGROUND" \
+	"${rotationArgs[@]}" \
 	\( \
 	    \( \
 		"$imageFilespec" \
