@@ -1,0 +1,91 @@
+#!/bin/bash
+
+readonly scriptDir="$([ "${BASH_SOURCE[0]}" ] && dirname -- "${BASH_SOURCE[0]}" || exit 3)"
+[ -d "$scriptDir" ] || { echo >&2 'ERROR: Cannot determine script directory!'; exit 3; }
+readonly projectDir="${scriptDir}/.."
+readonly etcDir="${projectDir}/etc/$(basename -- "${BASH_SOURCE[0]}")"
+
+: ${FAKEPHOTO_BACKGROUND:="${etcDir}/background.jpg"}
+: ${FAKEPHOTO_EXT:=photo}
+
+printUsage()
+{
+    cat <<HELPTEXT
+Convert the passed IMAGE(es) (to the same directory or TARGETDIR, with an added
+*.${FAKEPHOTO_EXT}.* extension) so that it appears as if printed out and
+photographed off of a background.
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-o|--to TARGETDIR] [--] IMAGE [...] [-?|-h|--help]'
+}
+targetDirspec=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--to|-o)	shift
+			if [ ! -d "$1" ]; then
+			    printf >&2 "ERROR: Target directory '%s' does not exist\\n" "$1"
+			    exit 2
+			fi
+			targetDirspec="${1:?}"; shift
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+backgroundAspectRatio=$(imageAspectRatio -- "$FAKEPHOTO_BACKGROUND") || exit 3
+< <(imageSize -- "$FAKEPHOTO_BACKGROUND") IFS=$'\t' read -r backgroundWidth backgroundHeight
+insertSize="$((backgroundWidth * 80 / 100))x$((backgroundHeight * 80 / 100))"
+
+status=0
+for imageFilespec
+do
+    dirspec="${targetDirspec:-$(dirname -- "$imageFilespec")}"
+    targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKEPHOTO_EXT}" "$imageFilespec")"
+
+    typeset -a rotationArgs=()
+    resizeSize="$insertSize"
+    imageAspectRatio=$(imageAspectRatio -- "$imageFilespec") || status=3
+    if (( (imageAspectRatio < 100 && backgroundAspectRatio > 100) || (imageAspectRatio > 100 && backgroundAspectRatio < 100) )); then
+	rotationArgs=(-rotate 90)
+	resizeSize="${insertSize#*x}x${insertSize%x*}"
+    fi
+
+    randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
+    printf -v randomDistortion '0.%02d' $((RANDOM % 10 + 5))
+
+    convert \
+	-density 150 \
+	"$FAKEPHOTO_BACKGROUND" \
+	"${rotationArgs[@]}" \
+	\( \
+	    \( \
+		"$imageFilespec" \
+		-resize "$resizeSize" \
+		-gravity center \
+		-write mpr:image +delete \
+		mpr:image -background black -shadow "$((RANDOM % 80 + 15))x9+10+10" \
+	    \) \
+	    mpr:image -geometry +10+10 -composite \
+	\) \
+	-gravity center \
+	-composite \
+	    -distort Barrel "0.0 0.0 $randomDistortion 1.0" \
+	    -rotate "${randomSign}$((RANDOM % 2)).$((RANDOM % 9))" \
+	    -motion-blur "0x$((RANDOM % 2))" \
+	    -attenuate 0.001 +noise Uniform \
+	    -modulate $((RANDOM % 20 + 75)),100,$((RANDOM % 10 + 95)) \
+	    -background none \
+	    -shave 5% \
+	"$targetFilespec" || { status=$?; continue; }
+
+    printf '%s\n' "$targetFilespec"
+done
+exit $status

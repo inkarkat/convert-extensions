@@ -4,12 +4,19 @@ shopt -qs extglob
 printUsage()
 {
     pdf-add-signature --help 2>&1 | sed \
-	-e "1s#^.*\$#Add my signature to the passed PDF document(s) (to the current working directory or TARGETDIR, with added *.${FAKESCAN_EXT:-scanned}.${ADDSIGNATURE_EXT:-signed}.pdf extension) so that it appears as if printed out, signed, and then rescanned.#" \
+	-e "1s#^.*\$#Add my signature to the passed PDF document(s) (to the current working directory or TARGETDIR, with added *.${what:-WHAT}.${ADDSIGNATURE_EXT:-signed}.pdf extension) so that it appears as a fake ${what:-photo or scan}.#" \
+	-e 's/ signed /&+ faked /' \
 	-e '2b removeFirstParagraphLoop' \
-	-e '/^Usage:$/N' -e '/\(^\|\n\)Usage: */{ s/\(^\|\n\)\(Usage: *\)\?\([^ ]\+ \)*pdf-add-signature /\1\2'"$(basename "$1")"' /; }' \
-	-e '/^Example:$/N' -e '/\(^\|\n\)Example: */{ s/\(^\|\n\)\(Example: *\)\?pdf-add-signature /\1\2'"$(basename "$1") /; }" \
+	-e '/^Usage:$/N' -e '/\(^\|\n\)Usage: */{ s/\(^\|\n\)\(Usage: *\)\?\([^ ]\+ \)*pdf-add-signature /\1\2'"$(basename "$1")"' photo|scan /; }' \
+	-e '/^Example:$/N' -e '/\(^\|\n\)Example: */{ s/\(^\|\n\)\(Example: *\)\?pdf-add-signature /\1\2'"$(basename "$1") photo /; }" \
 	-e b -e :removeFirstParagraphLoop -e '{ /\(^\|\n\)$/{ s/^\(.*\n\)\?//; b; }; N; b removeFirstParagraphLoop; }'
 }
+
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+esac
+
+what="${1:?}"; shift
 
 typeset -a addSignatureArgs=()
 typeset -a tempdirPipeOutputArg=(--output-to-origin)
@@ -37,5 +44,5 @@ fi
 
 exec tempdirPipe --with-header "${tempdirPipeOutputArg[@]}" \
     --exec pdf-add-signature "${addSignatureArgs[@]}" --direct --to '{O}' -- '{ii}' \; \
-    --exec fakescan --to '{O}' -- '{ii}' \; \
+    --exec "fake${what}" --to '{O}' -- '{ii}' \; \
     -- "$@"
