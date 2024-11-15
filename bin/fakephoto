@@ -80,6 +80,7 @@ do
 	    -distort Barrel "0.0 0.0 $randomDistortion 1.0" \
 	    -rotate "${randomSign}$((RANDOM % 2)).$((RANDOM % 9))" \
 	    -motion-blur "0x$((RANDOM % 2))" \
+	    -attenuate 0.001 +noise Uniform \
 	    -modulate $((RANDOM % 20 + 75)),100,$((RANDOM % 10 + 95)) \
 	    -background none \
 	    -shave 5% \
