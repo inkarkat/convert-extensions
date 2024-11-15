@@ -59,6 +59,8 @@ do
     fi
 
     randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
+    printf -v randomDistortion '0.%02d' $((RANDOM % 10 + 5))
+
     convert \
 	-density 150 \
 	"$FAKEPHOTO_BACKGROUND" \
@@ -75,8 +77,10 @@ do
 	\) \
 	-gravity center \
 	-composite \
-	    -distort Barrel "0.0 0.0 0.1 1.0" \
-	    -rotate 2 \
+	    -distort Barrel "0.0 0.0 $randomDistortion 1.0" \
+	    -rotate "${randomSign}$((RANDOM % 2)).$((RANDOM % 9))" \
+	    -motion-blur "0x$((RANDOM % 2))" \
+	    -modulate $((RANDOM % 20 + 75)),100,$((RANDOM % 10 + 95)) \
 	    -background none \
 	    -shave 5% \
 	"$targetFilespec" || { status=$?; continue; }
