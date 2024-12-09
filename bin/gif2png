@@ -75,7 +75,11 @@ process()
 status=0
 for filespec in "${gifFiles[@]}"
 do
-    process "$filespec" "$(fileExtension "${fileExtensionArgs[@]}" --modify png "$filespec")" \
-	|| status=$?
+    targetFilespec="$(fileExtension "${fileExtensionArgs[@]}" --modify png "$filespec")" || exit 3
+    if process "$filespec" "$targetFilespec"; then
+	printf '%s\n' "$targetFilespec"
+    else
+	status=$?
+    fi
 done
 exit $status
