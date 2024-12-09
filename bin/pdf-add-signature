@@ -114,7 +114,7 @@ status=0
 for pdf
 do
     dirspec="${targetDirspec:-$(dirname -- "$pdf")}"
-    targetPdf="${dirspec}/$(fileExtension --basename --splice ".${PDF_ADDSIGNATURE_EXT}" "$pdf")"
+    targetPdf="${dirspec}/$(fileExtension --basename --splice ".${PDF_ADDSIGNATURE_EXT}" "$pdf")" || exit 3
     if [ "$isDirect" ]; then
 	sourcePdf="$pdf"
 	conversionTarget="$targetPdf"

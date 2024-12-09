@@ -48,7 +48,7 @@ status=0
 for imageFilespec
 do
     dirspec="${targetDirspec:-$(dirname -- "$imageFilespec")}"
-    targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKEPHOTO_EXT}" "$imageFilespec")"
+    targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKEPHOTO_EXT}" "$imageFilespec")" || exit 3
 
     typeset -a rotationArgs=()
     resizeSize="$insertSize"

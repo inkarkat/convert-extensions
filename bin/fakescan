@@ -38,7 +38,7 @@ status=0
 for imageFilespec
 do
     dirspec="${targetDirspec:-$(dirname -- "$imageFilespec")}"
-    targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKESCAN_EXT}" "$imageFilespec")"
+    targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKESCAN_EXT}" "$imageFilespec")" || exit 3
 
     randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
     convert \
