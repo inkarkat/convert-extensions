@@ -3,33 +3,79 @@
 printUsage()
 {
     cat <<HELPTEXT
-Converts (static or animated) GIF images to the modern (animated) PNG format.
+Converts (static or animated) GIF image(s) to the modern (animated) PNG format.
 HELPTEXT
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--] GIF-INPUT-FILESPEC PNG-OUTPUT-FILESPEC [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-o|--to TARGETDIR] [--] GIF-FILE [...] [-?|-h|--help]'
 }
-case "$1" in
-    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-    --)			shift;;
-esac
-if [ $# -ne 2 ]; then
-    printUsage "$0" >&2
+
+typeset -a fileExtensionArgs=()
+typeset -a allArgs=()
+unset gifFiles
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--to|-o)	shift
+			if [ ! -d "$1" ]; then
+			    printf >&2 "ERROR: Target directory '%s' does not exist\n" "$1"
+			    exit 2
+			fi
+			fileExtensionArgs+=(--rebase "${1:?}"); shift
+			;;
+	--)		allArgs+=("$1"); shift; typeset -a gifFiles=("$@"); set --; break;;
+	*)		allArgs+=("$1"); shift;;
+    esac
+done
+if [ -z "${gifFiles+t}" ]; then
+    # No files after -- captured yet; need to investigate parsed and
+    # remaining args from behind for files.
+    typeset -a gifFiles=()
+    allArgs+=("$@")
+    while [ ${#allArgs[@]} -ne 0 ]
+    do
+	lastArg="${allArgs[-1]}"
+	[ -e "$lastArg" ] || break
+
+	gifFiles=("$lastArg" "${gifFiles[@]}")
+	allArgs=("${allArgs[@]:0:${#allArgs[@]}-1}")
+    done
+fi
+if [ ${#gifFiles[@]} -eq 0 ]; then
+    printUsage "$0"
     exit 2
-fi
-sourceFilespec="${1:?}"; shift
-targetFilespec="${1:?}"; shift
+elif [ ${#allArgs[@]} -gt 0 ]; then
+    echo "ERROR: Unknown option \"${allArgs[0]}\"!"
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
 
-# Determine whether the source is a static or animated GIF; ImageMagick can only
-# extract individual images from the latter; we need the specialized gif2apng
-# command for a conversion of animated GIFs.
-# Source: https://davidwalsh.name/detect-gif-animated
-if [ "$(identify -format %n -- "$sourceFilespec")" = 1 ]; then
-    exec convert -- "$sourceFilespec" "$targetFilespec"
-else
-    if ! type -t gif2apng >/dev/null; then
-	printf 'ERROR: %s is an animated GIF, but the required gif2apng program is not installed.\n' "$sourceFilespec"
-	exit 3
+process()
+{
+    local sourceFilespec="${1:?}"; shift
+    local targetFilespec="${1:?}"; shift
+
+    # Determine whether the source is a static or animated GIF; ImageMagick can only
+    # extract individual images from the latter; we need the specialized gif2apng
+    # command for a conversion of animated GIFs.
+    # Source: https://davidwalsh.name/detect-gif-animated
+    if [ "$(identify -format %n -- "$sourceFilespec")" = 1 ]; then
+	convert -- "$sourceFilespec" "$targetFilespec"
+    else
+	if ! type -t gif2apng >/dev/null; then
+	    printf 'ERROR: %s is an animated GIF, but the required gif2apng program is not installed.\n' "$sourceFilespec"
+	    return 3
+	fi
+
+	gif2apng -- "$sourceFilespec" "$targetFilespec"
     fi
+}
 
-    exec gif2apng -- "$sourceFilespec" "$targetFilespec"
-fi
+status=0
+for filespec in "${gifFiles[@]}"
+do
+    process "$filespec" "$(fileExtension "${fileExtensionArgs[@]}" --modify png "$filespec")" \
+	|| status=$?
+done
+exit $status
