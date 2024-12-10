@@ -12,7 +12,7 @@ printUsage()
 {
     cat <<HELPTEXT
 Convert the passed IMAGE(es) (to the same directory or TARGETDIR, with an added
-*.${FAKEPHOTO_EXT}.* extension) so that it appears as if printed out and
+.${FAKEPHOTO_EXT}. extension) so that it appears as if printed out and
 photographed off of a background.
 HELPTEXT
     echo

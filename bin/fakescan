@@ -6,7 +6,7 @@ printUsage()
 {
     cat <<HELPTEXT
 Convert the passed IMAGE(es) (to the same directory or TARGETDIR, with an added
-*.${FAKESCAN_EXT}.* extension) so that it appears as if printed out and
+.${FAKESCAN_EXT}. extension) so that it appears as if printed out and
 rescanned.
 HELPTEXT
     echo
