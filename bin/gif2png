@@ -6,9 +6,10 @@ printUsage()
 Converts (static or animated) GIF image(s) to the modern (animated) PNG format.
 HELPTEXT
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-o|--to TARGETDIR] [--] GIF-FILE [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-f|--force] [-o|--to TARGETDIR] [--] GIF-FILE [...] [-?|-h|--help]'
 }
 
+isForce=
 typeset -a fileExtensionArgs=()
 typeset -a allArgs=()
 unset gifFiles
@@ -16,6 +17,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--force|-f)	shift; isForce=t;;
 	--to|-o)	shift
 			if [ ! -d "$1" ]; then
 			    printf >&2 "ERROR: Target directory '%s' does not exist\n" "$1"
@@ -72,14 +74,17 @@ process()
     fi
 }
 
-status=0
+status=
 for filespec in "${gifFiles[@]}"
 do
     targetFilespec="$(fileExtension "${fileExtensionArgs[@]}" --modify png "$filespec")" || exit 3
-    if process "$filespec" "$targetFilespec"; then
+    if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
+	printf >&2 'Skipping existing %s\n' "$targetFilespec"
+    elif process "$filespec" "$targetFilespec"; then
+	: ${status:=0}
 	printf '%s\n' "$targetFilespec"
     else
 	status=$?
     fi
 done
-exit $status
+exit ${status:-99}
