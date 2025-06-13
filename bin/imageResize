@@ -1,0 +1,83 @@
+#!/bin/bash
+
+: ${IMAGERESIZE_GEOMETRY:=50%}
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--resize GEOMETRY] [--filter FILTER] [-f|--force] IMG[.orig].(jpg|png) [...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Resize the original image to GEOMETRY (e.g. 75% or 320x200).
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    cat <<HELPTEXT
+    --resize|-s GEOMETRY
+			Resize to GEOMETRY; default is ${IMAGERESIZE_GEOMETRY}.
+    --filter FILTER	Use the ImageMagick FILTER.
+    --force|-f		Also process files where the target already exists; by
+			default, only files that have not yet been resized
+			are processed.
+HELPTEXT
+}
+
+isForce=
+geometry=
+filter=Mitchell
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--resize|-s)	shift; geometry="${1:?}"; shift;;
+	--filter)	shift; filter="${1?}"; shift;;
+	--force|-f)	shift; isForce=t;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+status=
+for filespec
+do
+    case "$filespec" in
+	*.orig.*)
+	    sourceFilespec="$filespec"
+	    targetFilespec="${filespec/.orig./.}"
+	    ;;
+	*)
+	    sourceFilespec="${filespec%.*}.orig.${filespec##*.}"
+	    targetFilespec="$filespec"
+	    if [ ! -e "$sourceFilespec" ]; then
+		printf >&2 'Creating original from %s\n' "$filespec"
+		mv -- "$filespec" "$sourceFilespec" || { status=$?; continue; }
+	    fi
+	    ;;
+    esac
+
+    if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
+	printf >&2 'Skipping existing %s\n' "$targetFilespec"
+    else
+	convert "$sourceFilespec" \
+	    ${filter:+-filter "$filter"} -resize "${geometry:-$IMAGERESIZE_GEOMETRY}" -define png:compression-level=9 \
+	    "$targetFilespec" && : ${status:=0} || status=$?
+    fi
+done
+exit ${status:-99}
