@@ -1,0 +1,96 @@
+#!/bin/bash
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--size GEOMETRY] [-g|--gravity GRAVITY] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Crop the original IMAGE-FILE(s) to GEOMETRY (e.g. 75% or 320x200).
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --size|-s GEOMETRY	Crop to GEOMETRY; default is the smallest dimensions of
+			all passed IMAGE-FILE(s).
+    --gravity|-g GRAVITY
+			Use the ImageMagick GRAVITY for cropping; default is
+			center.
+    --force|-f		Also process files where the target already exists; by
+			default, only files that have not yet been cropped are
+			processed.
+HELPTEXT
+}
+
+isForce=
+geometry=
+gravity=center
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--size|-s)	shift; geometry="${1:?}"; shift;;
+	--gravity|-g)	shift; gravity="${1?}"; shift;;
+	--force|-f)	shift; isForce=t;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+if [ -z "$geometry" ]; then
+    let minWidth=2147483647
+    let minHeight=2147483647
+    while IFS=$'\t' read -r width height
+    do
+	minWidth=$((width < minWidth ? width : minWidth))
+	minHeight=$((width < minHeight ? height : minHeight))
+    done < <(identify -format $'%w\t%h\n' "$@")
+    geometry="${minWidth}x${minHeight}"
+    printf >&2 'Note: Using geometry %s based on the smallest dimensions of all passed files.\n' "$geometry"
+fi
+
+status=
+for filespec
+do
+    case "$filespec" in
+	*.orig.*)
+	    sourceFilespec="$filespec"
+	    targetFilespec="${filespec/.orig./.}"
+	    ;;
+	*)
+	    sourceFilespec="${filespec%.*}.orig.${filespec##*.}"
+	    targetFilespec="$filespec"
+	    if [ ! -e "$sourceFilespec" ]; then
+		printf >&2 'Creating original from %s\n' "$filespec"
+		mv -- "$filespec" "$sourceFilespec" || { status=$?; continue; }
+	    fi
+	    ;;
+    esac
+
+    if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
+	printf >&2 'Skipping existing %s\n' "$targetFilespec"
+    else
+	convert "$sourceFilespec" \
+	    -background none -gravity "$gravity" -extent "$geometry" -define png:compression-level=9 \
+	    "$targetFilespec" && : ${status:=0} || status=$?
+    fi
+done
+exit ${status:-99}
