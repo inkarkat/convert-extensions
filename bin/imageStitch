@@ -1,0 +1,135 @@
+#!/bin/bash
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--horizontal|--vertical|--tile COLUMNSxROWS] [-f|--force] [-t|--to TARGET-IMAGE-FILE[.orig].(jpg|png)] IMAGE-FILE [...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Combine IMAGE-FILE(s) to a single TARGET-IMAGE-FILE.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --horizontal	Combine IMAGE-FILE(s) horizontally (i.e. left to right).
+			This is the default.
+    --vertical		Combine IMAGE-FILE(s) vertically (i.e. top to bottom).
+    --tile COLUMNSxROWS	Combine IMAGE-FILE(s) in a COLUMNSxROWS grid; e.g. 2x3
+			for 2 columns and 3 rows.
+    --force|-f		Also process files where the target already exists; by
+			default, only files that have not yet been resized
+			are processed.
+    --to|-t TARGET-IMAGE-FILE[.orig].(jpg|png)
+			Write the combined image to TARGET-IMAGE-FILE; by
+			default, a name is synthesized from the passed
+			IMAGE-FILE(s).
+HELPTEXT
+}
+
+isForce=
+magickCommand=convert
+typeset -a magickOperators=(+append)
+targetFilespec=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--horizontal)	shift; magickOperators=(+append);;
+	--vertical)	shift; magickOperators=(-append);;
+	--tile)		shift; magickOperators=(-tile "${1:?}"); shift; magickCommand=montage;;
+	--force|-f)	shift; isForce=t;;
+	--to|-t)	shift; targetFilespec="${1:?}"; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+combineFilespecs()
+{
+    local a="${1:?}"; shift
+    local b="${1:?}"; shift
+
+    local i=0 la=${#a}; lb=${#b} min=$((la < lb ? la : lb))
+    while ((i < min)) && [[ "${a:i:1}" == "${b:i:1}" ]]; do
+	let i++
+    done
+    prefix="${a:0:i}"
+
+    # Common suffix (don't overlap prefix)
+    local j=0
+    while ((la-1-j >= i)) && ((lb-1-j >= i)) && [[ "${a:la-1-j:1}" == "${b:lb-1-j:1}" ]]; do
+	let j++
+    done
+    local suffix="${a:la-j:j}"
+    local mid_a="${a:i:la-i-j}"
+    local mid_b="${b:i:lb-i-j}"
+
+    printf '%s%s…%s%s' "$prefix" "$mid_a" "$mid_b" "$suffix"
+}
+
+if [ -z "$targetFilespec" ]; then
+    # DWIM: Don't include a previously generated target (i.e. with "…" in the
+    # synthesized name); it is more likely that the user wants to exclude the
+    # previously generated target (but chose a sloppy file glob that now includes
+    # an existing target file) rather then generate a recursively stitched image.
+    # Note: We don't filter out the IMAGE-FILE itself; that will be done by the
+    # exclusion of the target (and orig) files below.
+    for ((a = 1; a <= $#; a++))
+    do
+	[[ "${!a}" == *…* ]] || break
+    done
+    for ((b = $#; b >= 1; b--))
+    do
+	[[ "${!b}" == *…* ]] || break
+    done
+
+    targetFilespec="$(combineFilespecs "${!a}" "${!b}")"
+fi
+
+case "$targetFilespec" in
+    *.orig.*)
+	origFilespec=''
+	targetFilespec="${targetFilespec/.orig./.}"
+	;;
+    *)
+	origFilespec="${targetFilespec%.*}.orig.${targetFilespec##*.}"
+	if [ -e "$targetFilespec" -a ! -e "$origFilespec" ]; then
+	    printf >&2 'Creating original from %s\n' "$targetFilespec"
+	    mv -- "$targetFilespec" "$origFilespec" || exit $?
+	fi
+	;;
+esac
+
+typeset -a sourceFilespecs=()
+for filespec
+do
+    [ "$filespec" = "$targetFilespec" -o  "$filespec" = "$origFilespec" ] && continue
+    sourceFilespecs+=("$filespec")
+done
+
+if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
+    printf >&2 'Skipping existing %s\n' "$targetFilespec"
+    exit 99
+else
+    $magickCommand "${sourceFilespecs[@]}" \
+	"${magickOperators[@]}" -geometry +0+0 -define png:compression-level=9 \
+	"$targetFilespec"
+fi
