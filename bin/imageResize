@@ -6,7 +6,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--resize GEOMETRY] [--filter FILTER] [-f|--force] IMG[.orig].(jpg|png) [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--resize GEOMETRY] [--filter FILTER] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -20,10 +20,11 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Resize the original image to GEOMETRY (e.g. 75% or 320x200).
+Resize the original IMAGE-FILE to GEOMETRY (e.g. 75% or 320x200).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
+    echo
     cat <<HELPTEXT
     --resize|-s GEOMETRY
 			Resize to GEOMETRY; default is ${IMAGERESIZE_GEOMETRY}.

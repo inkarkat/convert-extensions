@@ -3,7 +3,7 @@
 printUsage()
 {
     cat <<HELPTEXT
-Show the image aspect ratio in percent (relative to DIFF-FILE) of all passed
+Show the aspect ratio in percent (relative to DIFF-FILE) of all passed
 IMAGE-FILE(s) (with appended filename if multiple are given). 100 means
 quadratic; 200 means twice as wide as high; 50 means twice as high as wide.
 HELPTEXT
