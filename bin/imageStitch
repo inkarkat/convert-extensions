@@ -62,46 +62,15 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
-combineFilespecs()
-{
-    local a="${1:?}"; shift
-    local b="${1:?}"; shift
-
-    local i=0 la=${#a}; lb=${#b} min=$((la < lb ? la : lb))
-    while ((i < min)) && [[ "${a:i:1}" == "${b:i:1}" ]]; do
-	let i++
-    done
-    prefix="${a:0:i}"
-
-    # Common suffix (don't overlap prefix)
-    local j=0
-    while ((la-1-j >= i)) && ((lb-1-j >= i)) && [[ "${a:la-1-j:1}" == "${b:lb-1-j:1}" ]]; do
-	let j++
-    done
-    local suffix="${a:la-j:j}"
-    local mid_a="${a:i:la-i-j}"
-    local mid_b="${b:i:lb-i-j}"
-
-    printf '%s%s…%s%s' "$prefix" "$mid_a" "$mid_b" "$suffix"
-}
-
 if [ -z "$targetFilespec" ]; then
-    # DWIM: Don't include a previously generated target (i.e. with "…" in the
-    # synthesized name); it is more likely that the user wants to exclude the
-    # previously generated target (but chose a sloppy file glob that now includes
-    # an existing target file) rather then generate a recursively stitched image.
-    # Note: We don't filter out the IMAGE-FILE itself; that will be done by the
-    # exclusion of the target (and orig) files below.
-    for ((a = 1; a <= $#; a++))
+    typeset -a names=()
+    for filespec
     do
-	[[ "${!a}" == *…* ]] || break
-    done
-    for ((b = $#; b >= 1; b--))
-    do
-	[[ "${!b}" == *…* ]] || break
+	names+=("$(basename -- "$filespec")")
     done
 
-    targetFilespec="$(combineFilespecs "${!a}" "${!b}")"
+    targetFilespec="$(dirname -- "$1")/$(combineNames --range --exclude-ranged -- "${names[@]}")" \
+	|| exit 3
 fi
 
 case "$targetFilespec" in
@@ -121,7 +90,7 @@ esac
 typeset -a sourceFilespecs=()
 for filespec
 do
-    [ "$filespec" = "$targetFilespec" -o  "$filespec" = "$origFilespec" ] && continue
+    isSameFilespec "$filespec" "$targetFilespec" || isSameFilespec "$filespec" "$origFilespec" && continue
     sourceFilespecs+=("$filespec")
 done
 
