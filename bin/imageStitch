@@ -62,11 +62,16 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
+if [ -z "$targetFilespec" ]; then
+    typeset -a names=()
+    for filespec
+    do
+	names+=("$(basename -- "$filespec")")
     done
 
-[ -n "$targetFilespec" ] \
-    || targetFilespec="$(combineNames --range --exclude-ranged -- "$@")" \
-    || exit 3
+    targetFilespec="$(dirname -- "$1")/$(combineNames --range --exclude-ranged -- "${names[@]}")" \
+	|| exit 3
+fi
 
 case "$targetFilespec" in
     *.orig.*)
@@ -85,7 +90,7 @@ esac
 typeset -a sourceFilespecs=()
 for filespec
 do
-    [ "$filespec" = "$targetFilespec" -o  "$filespec" = "$origFilespec" ] && continue
+    isSameFilespec "$filespec" "$targetFilespec" || isSameFilespec "$filespec" "$origFilespec" && continue
     sourceFilespecs+=("$filespec")
 done
 
