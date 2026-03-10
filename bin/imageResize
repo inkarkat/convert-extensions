@@ -6,7 +6,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--resize GEOMETRY] [--filter FILTER] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--size GEOMETRY] [--filter FILTER] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -26,8 +26,7 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
-    --resize|-s GEOMETRY
-			Resize to GEOMETRY; default is ${IMAGERESIZE_GEOMETRY}.
+    --size|-s GEOMETRY	Resize to GEOMETRY; default is ${IMAGERESIZE_GEOMETRY}.
     --filter FILTER	Use the ImageMagick FILTER.
     --force|-f		Also process files where the target already exists; by
 			default, only files that have not yet been resized
@@ -42,7 +41,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--resize|-s)	shift; geometry="${1:?}"; shift;;
+	--size|-s)	shift; geometry="${1:?}"; shift;;
 	--filter)	shift; filter="${1?}"; shift;;
 	--force|-f)	shift; isForce=t;;
 	--)		shift; break;;
