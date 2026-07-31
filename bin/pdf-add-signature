@@ -137,7 +137,7 @@ do
     if [ ! "$isDirect" ]; then
 	# Taken from pdfletterhead.
 	qpdf --overlay "$conversionTarget" --to=1 -- "$pdf" "$targetPdf" || { status=$?; continue; }
-	[ "${DEBUG:-}" ] || rm --force -- "$conversionTarget"
+	! ${DEBUG:+debugenabled --invert-match --} ${DEBUG:-:} || rm --force -- "$conversionTarget"
     fi
 
     printf '%s\n' "$targetPdf"
