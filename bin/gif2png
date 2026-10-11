@@ -53,6 +53,7 @@ elif [ ${#allArgs[@]} -gt 0 ]; then
     exit 2
 fi >&2
 
+typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
 process()
 {
     local sourceFilespec="${1:?}"; shift
@@ -63,7 +64,7 @@ process()
     # command for a conversion of animated GIFs.
     # Source: https://davidwalsh.name/detect-gif-animated
     if [ "$(identify -format %n -- "$sourceFilespec")" = 1 ]; then
-	convert -- "$sourceFilespec" "$targetFilespec"
+	"${CONVERT[@]}" -- "$sourceFilespec" "$targetFilespec"
     else
 	if ! type -t gif2apng >/dev/null; then
 	    printf 'ERROR: %s is an animated GIF, but the required gif2apng program is not installed.\n' "$sourceFilespec"

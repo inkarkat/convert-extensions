@@ -110,6 +110,7 @@ $((height * PDF_ADDSIGNATURE_SIGNATURE_SCALE / 100 * PDF_ADDSIGNATURE_DPI_SCALE 
     printf "Info: Placing signature at %s\n" "${geometry}"
 fi
 
+typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
 status=0
 for pdf
 do
@@ -123,7 +124,7 @@ do
 	conversionTarget="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX.pdf" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$${RANDOM}.pdf")"
     fi
 
-    convert \
+    "${CONVERT[@]}" \
 	-density $((300 * PDF_ADDSIGNATURE_DPI_SCALE / 100)) \
 	"$sourcePdf" \
 	\( \

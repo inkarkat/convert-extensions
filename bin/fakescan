@@ -34,6 +34,7 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
+typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
 status=0
 for imageFilespec
 do
@@ -41,7 +42,7 @@ do
     targetFilespec="${dirspec}/$(fileExtension --basename --splice ".${FAKESCAN_EXT}" "$imageFilespec")" || exit 3
 
     randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
-    convert \
+    "${CONVERT[@]}" \
 	-density 150 \
 	"$imageFilespec" \
 	\( +clone +noise Random -threshold 98% -negate -level 98%,98% \) \

@@ -94,11 +94,12 @@ do
     sourceFilespecs+=("$filespec")
 done
 
+typeset -a MAGICK_COMMAND=($magickCommand); [ -n "$DEBUG" ] && MAGICK_COMMAND=(debugcommand --for $magickCommand -- "${MAGICK_COMMAND[@]}")
 if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
     printf >&2 'Skipping existing %s\n' "$targetFilespec"
     exit 99
 else
-    $magickCommand "${sourceFilespecs[@]}" \
+    "${MAGICK_COMMAND[@]}" "${sourceFilespecs[@]}" \
 	"${magickOperators[@]}" -geometry +0+0 -define png:compression-level=9 \
 	"$targetFilespec"
 fi

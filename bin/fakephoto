@@ -44,6 +44,7 @@ backgroundAspectRatio=$(imageAspectRatio -- "$FAKEPHOTO_BACKGROUND") || exit 3
 < <(imageSize -- "$FAKEPHOTO_BACKGROUND") IFS=$'\t' read -r backgroundWidth backgroundHeight
 insertSize="$((backgroundWidth * 80 / 100))x$((backgroundHeight * 80 / 100))"
 
+typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
 status=0
 for imageFilespec
 do
@@ -61,7 +62,7 @@ do
     randomSign=$((RANDOM % 2 ? -1 : 1)); randomSign="${randomSign%1}"
     printf -v randomDistortion '0.%02d' $((RANDOM % 10 + 5))
 
-    convert \
+    "${CONVERT[@]}" \
 	-density 150 \
 	"$FAKEPHOTO_BACKGROUND" \
 	"${rotationArgs[@]}" \
