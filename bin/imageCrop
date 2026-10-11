@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--size GEOMETRY] [-g|--gravity GRAVITY] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '(-c|--crop GEOMETRY|[-s|--size GEOMETRY] [-g|--gravity GRAVITY]) [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -18,14 +18,18 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Crop the original IMAGE-FILE(s) to GEOMETRY (e.g. 75% or 320x200).
+Crop (i.e. cut off parts of) the original IMAGE-FILE(s) to GEOMETRY
+(e.g. 80x60+20+10 or 75% or 320x200).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
-    --size|-s GEOMETRY	Crop to GEOMETRY; default is the smallest dimensions of
-			all passed IMAGE-FILE(s).
+    --crop|-c GEOMETRY	Crop to GEOMETRY; this purely cuts off parts of the
+			image, and does not extend the image if it is smaller
+			than GEOMETRY.
+    --size|-s GEOMETRY	Crop (or extend) borders to GEOMETRY; default is the
+			smallest dimensions of all passed IMAGE-FILE(s).
     --gravity|-g GRAVITY
 			Use the ImageMagick GRAVITY for cropping; default is
 			center.
@@ -36,13 +40,15 @@ HELPTEXT
 }
 
 isForce=
-geometry=
+cropGeometry=
+extentGeometry=
 gravity=center
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--size|-s)	shift; geometry="${1:?}"; shift;;
+	--crop|-c)	shift; cropGeometry="${1:?}"; shift;;
+	--size|-s)	shift; extentGeometry="${1:?}"; shift;;
 	--gravity|-g)	shift; gravity="${1?}"; shift;;
 	--force|-f)	shift; isForce=t;;
 	--)		shift; break;;
@@ -55,7 +61,7 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
-if [ -z "$geometry" ]; then
+if [ -z "$cropGeometry" -a -z "$extentGeometry" ]; then
     let minWidth=2147483647
     let minHeight=2147483647
     while IFS=$'\t' read -r width height
@@ -63,8 +69,8 @@ if [ -z "$geometry" ]; then
 	minWidth=$((width < minWidth ? width : minWidth))
 	minHeight=$((width < minHeight ? height : minHeight))
     done < <(identify -format $'%w\t%h\n' "$@")
-    geometry="${minWidth}x${minHeight}"
-    printf >&2 'Note: Using geometry %s based on the smallest dimensions of all passed files.\n' "$geometry"
+    extentGeometry="${minWidth}x${minHeight}"
+    printf >&2 'Note: Using geometry %s based on the smallest dimensions of all passed files.\n' "$extentGeometry"
 fi
 
 status=
@@ -89,7 +95,10 @@ do
 	printf >&2 'Skipping existing %s\n' "$targetFilespec"
     else
 	convert "$sourceFilespec" \
-	    -background none -gravity "$gravity" -extent "$geometry" -define png:compression-level=9 \
+	    -background none \
+		${cropGeometry:+-crop "$cropGeometry"} \
+		${extentGeometry:+-gravity "$gravity" -extent "$extentGeometry"} \
+		+repage -define png:compression-level=9 \
 	    "$targetFilespec" && : ${status:=0} || status=$?
     fi
 done
