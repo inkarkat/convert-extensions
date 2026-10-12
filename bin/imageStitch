@@ -66,7 +66,8 @@ if [ -z "$targetFilespec" ]; then
     typeset -a names=()
     for filespec
     do
-	names+=("$(basename -- "$filespec")")
+	name="$(basename -- "$filespec")"
+	names+=("${name/.orig./.}")
     done
 
     targetFilespec="$(dirname -- "$1")/$(combineNames --range --exclude-ranged -- "${names[@]}")" \
@@ -78,8 +79,7 @@ case "$targetFilespec" in
 	origFilespec=''
 	targetFilespec="${targetFilespec/.orig./.}"
 	;;
-    *)
-	origFilespec="${targetFilespec%.*}.orig.${targetFilespec##*.}"
+    *)	origFilespec="${targetFilespec%.*}.orig.${targetFilespec##*.}"
 	if [ -e "$targetFilespec" -a ! -e "$origFilespec" ]; then
 	    printf >&2 'Creating original from %s\n' "$targetFilespec"
 	    mv -- "$targetFilespec" "$origFilespec" || exit $?
@@ -88,10 +88,22 @@ case "$targetFilespec" in
 esac
 
 typeset -a sourceFilespecs=()
+typeset -A sourceFilespecDict=()
 for filespec
 do
     isSameFilespec "$filespec" "$targetFilespec" || isSameFilespec "$filespec" "$origFilespec" && continue
     sourceFilespecs+=("$filespec")
+    sourceFilespecDict["$filespec"]=t
+done
+typeset -a uniqueSourceFilespecs=()
+for filespec in "${sourceFilespecs[@]}"
+do
+    sourceFilespec="${filespec/.orig./.}"
+    # Don't include both FILE.EXT and FILE.orig.EXT; only include the first one as
+    # the latter is a backup.
+    [ "$sourceFilespec" != "$filespec" ] && [ "${sourceFilespecDict["$sourceFilespec"]+t}" ] \
+	&& continue
+    uniqueSourceFilespecs+=("$filespec")
 done
 
 typeset -a MAGICK_COMMAND=($magickCommand); [ -n "$DEBUG" ] && MAGICK_COMMAND=(debugcommand --for $magickCommand -- "${MAGICK_COMMAND[@]}")
@@ -99,7 +111,7 @@ if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
     printf >&2 'Skipping existing %s\n' "$targetFilespec"
     exit 99
 else
-    "${MAGICK_COMMAND[@]}" "${sourceFilespecs[@]}" \
+    "${MAGICK_COMMAND[@]}" "${uniqueSourceFilespecs[@]}" \
 	"${magickOperators[@]}" -geometry +0+0 -define png:compression-level=9 \
 	"$targetFilespec"
 fi
