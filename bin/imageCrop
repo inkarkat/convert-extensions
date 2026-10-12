@@ -75,6 +75,7 @@ fi
 
 typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
 status=
+lastSourceFilespec=
 for filespec
 do
     case "$filespec" in
@@ -82,8 +83,7 @@ do
 	    sourceFilespec="$filespec"
 	    targetFilespec="${filespec/.orig./.}"
 	    ;;
-	*)
-	    sourceFilespec="${filespec%.*}.orig.${filespec##*.}"
+	*)  sourceFilespec="$(fileExtension --single --splice .orig "$filespec")"
 	    targetFilespec="$filespec"
 	    if [ ! -e "$sourceFilespec" ]; then
 		printf >&2 'Creating original from %s\n' "$filespec"
@@ -91,6 +91,10 @@ do
 	    fi
 	    ;;
     esac
+    if [ "$sourceFilespec" = "$lastSourceFilespec" ]; then
+	# Don't process twice when both FILE.EXT and FILE.orig.EXT are passed.
+	continue
+    fi; lastSourceFilespec="$sourceFilespec"
 
     if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
 	printf >&2 'Skipping existing %s\n' "$targetFilespec"
