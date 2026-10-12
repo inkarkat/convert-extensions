@@ -83,7 +83,7 @@ do
 	    sourceFilespec="$filespec"
 	    targetFilespec="${filespec/.orig./.}"
 	    ;;
-	*)  sourceFilespec="${filespec%.*}.orig.${filespec##*.}"
+	*)  sourceFilespec="$(fileExtension --single --splice .orig "$filespec")"
 	    targetFilespec="$filespec"
 	    if [ ! -e "$sourceFilespec" ]; then
 		printf >&2 'Creating original from %s\n' "$filespec"
