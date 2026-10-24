@@ -105,6 +105,32 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
+typeset -a chosenResults=()
+typeset -A uniqueResults=()
+clearResults()
+{
+    chosenResults=()
+    uniqueResults=()
+}
+addUniqueResult()
+{
+    local width="${1:?}"; shift
+    local height="${1:?}"; shift
+    local filespec="${1?}"; shift
+
+    [ "$isIncludeFilespec" ] || filespec=''
+    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$width" "$height" "$filespec"
+    if [ ! "${uniqueResults[$result]}" ]; then
+	chosenResults+=("$result")
+	uniqueResults["$result"]=t
+    fi
+}
+printResults()
+{
+    [ ${#chosenResults[@]} -eq 0 ] \
+	|| printf '%s\n' "${chosenResults[@]}"
+}
+
 if [ -n "$compareOp" ]; then
     exitStatus=3
     compareStatus=0
@@ -123,26 +149,18 @@ elif [ -n "$diffWidth" -a -n "$diffHeight" ]; then
 elif [ -n "$selector" ]; then
     exitStatus=3
     chosenValue=
-    typeset -a chosenResults=()
-    typeset -A uniqueResults=()
     while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
-	[ "$isIncludeFilespec" ] || filespec=''
 	currentValue=$(($selector))
 	if [ -z "$chosenValue" ] || [ $currentValue $chooseOp $chosenValue ]; then
 	    chosenValue=$currentValue
-	    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$fileWidth" "$fileHeight" "$filespec"
-	    chosenResults=("$result")
-	    uniqueResults["$result"]=t
+	    clearResults
+	    addUniqueResult "$fileWidth" "$fileHeight" "$filespec"
 	elif [ $currentValue -eq $chosenValue ]; then
-	    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$fileWidth" "$fileHeight" "$filespec"
-	    if [ ! "${uniqueResults[$result]}" ]; then
-		chosenResults+=("$result")
-		uniqueResults["$result"]=t
-	    fi
+	    addUniqueResult "$fileWidth" "$fileHeight" "$filespec"
 	fi
     done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
-    printf '%s\n' "${chosenResults[@]}"
+    printResults
     exit $exitStatus
 else
     getDimensions "$@"
