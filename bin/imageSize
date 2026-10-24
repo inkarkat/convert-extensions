@@ -6,10 +6,27 @@ printUsage()
 {
     cat <<HELPTEXT
 Show the image width and height (tab-separated) (or relative to DIFF-FILE) of
-all passed IMAGE-FILE(s) (with appended filename if multiple are given).
+all passed IMAGE-FILE(s) (with appended filespec if multiple are given).
 HELPTEXT
     echo
     printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '[-d|--diff DIFF-FILE] [--] IMAGE-FILE [...] [-?|-h|--help]'
+    echo
+    cat <<HELPTEXT
+Print the image width and height (tab-separated) of that IMAGE-FILE that
+fulfills the passed condition:
+    --smallest		Print the smallest image (by area).
+    --largest		Print the largest image (by area).
+    --min		Print the image with the smallest sum of width and
+			height.
+    --max		Print the image with the largest sum of width and
+			height.
+    --min-width		Print the image with the smallest width.
+    --max-width		Print the image with the largest width.
+    --min-height	Print the image with the smallest height.
+    --max-height	Print the image with the largest height.
+HELPTEXT
+    echo
+    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height [--] IMAGE-FILE IMAGE-FILE [...]'
     echo
     cat <<HELPTEXT
 Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
@@ -54,11 +71,21 @@ parseDimensions()
 compareOp=
 diffHeight=
 diffWidth=
+selector=
+chooseOp=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
 	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$1"); shift;;
+	--smallest)	shift; selector='fileWidth * fileHeight'; chooseOp=-lt;;
+	--largest)	shift; selector='fileWidth * fileHeight'; chooseOp=-gt;;
+	--min)		shift; selector='fileWidth + fileHeight'; chooseOp=-lt;;
+	--max)		shift; selector='fileWidth + fileHeight'; chooseOp=-gt;;
+	--min-width)	shift; selector='fileWidth';	    chooseOp=-lt;;
+	--max-width)	shift; selector='fileWidth';	    chooseOp=-gt;;
+	--min-height)	shift; selector='fileHeight';	    chooseOp=-lt;;
+	--max-height)	shift; selector='fileHeight';	    chooseOp=-gt;;
 	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
 	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
 	-lt|-le|-eq|-ne|-ge|-gt)
@@ -87,6 +114,24 @@ elif [ -n "$diffWidth" -a -n "$diffHeight" ]; then
     do
 	printf "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s\\n" "$((fileWidth - diffWidth))" "$((fileHeight - diffHeight))" "$filespec"
     done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
+    exit $exitStatus
+elif [ -n "$selector" ]; then
+    exitStatus=3
+    chosenValue=
+    typeset -a chosenResults=()
+    while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
+    do
+	currentValue=$(($selector))
+	if [ -z "$chosenValue" ] || [ $currentValue $chooseOp $chosenValue ]; then
+	    chosenValue=$currentValue
+	    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$fileWidth" "$fileHeight" "$filespec"
+	    chosenResults=("$result")
+	elif [ $currentValue -eq $chosenValue ]; then
+	    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$fileWidth" "$fileHeight" "$filespec"
+	    chosenResults+=("$result")
+	fi
+    done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
+    printf '%s\n' "${chosenResults[@]}"
     exit $exitStatus
 else
     getDimensions "$@"
