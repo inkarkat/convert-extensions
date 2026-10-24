@@ -24,9 +24,11 @@ fulfills the passed condition:
     --max-width		Print the image with the largest width.
     --min-height	Print the image with the smallest height.
     --max-height	Print the image with the largest height.
+    --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILES that
+			fulfill the condition.
 HELPTEXT
     echo
-    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height [--] IMAGE-FILE IMAGE-FILE [...]'
+    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height [-f|--with-filename] [--] IMAGE-FILE IMAGE-FILE [...]'
     echo
     cat <<HELPTEXT
 Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
@@ -73,6 +75,7 @@ diffHeight=
 diffWidth=
 selector=
 chooseOp=
+isIncludeFilespec=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -88,6 +91,8 @@ do
 	--max-height)	shift; selector='fileHeight';	    chooseOp=-gt;;
 	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
 	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
+	--with-filename|-f)
+			shift; isIncludeFilespec=t;;
 	-lt|-le|-eq|-ne|-ge|-gt)
 			compareOp="$1"; shift; parseDimensions "$1"; shift;;
 	--)		shift; break;;
@@ -119,16 +124,22 @@ elif [ -n "$selector" ]; then
     exitStatus=3
     chosenValue=
     typeset -a chosenResults=()
+    typeset -A uniqueResults=()
     while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
+	[ "$isIncludeFilespec" ] || filespec=''
 	currentValue=$(($selector))
 	if [ -z "$chosenValue" ] || [ $currentValue $chooseOp $chosenValue ]; then
 	    chosenValue=$currentValue
 	    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$fileWidth" "$fileHeight" "$filespec"
 	    chosenResults=("$result")
+	    uniqueResults["$result"]=t
 	elif [ $currentValue -eq $chosenValue ]; then
 	    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$fileWidth" "$fileHeight" "$filespec"
-	    chosenResults+=("$result")
+	    if [ ! "${uniqueResults[$result]}" ]; then
+		chosenResults+=("$result")
+		uniqueResults["$result"]=t
+	    fi
 	fi
     done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
     printf '%s\n' "${chosenResults[@]}"
