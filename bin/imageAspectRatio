@@ -15,9 +15,18 @@ Test whether the aspect ratio of [all] IMAGE-FILE[s] is greater / smaller than
 PERCENTAGE.
 HELPTEXT
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt PERCENTAGE [--] IMAGE-FILE [...]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt PERCENTAGE [-f|--with-filename] [-A|--always-output|-S|--success-output] [--] IMAGE-FILE [...]'
     echo
     cat <<HELPTEXT
+    --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILEs that
+			fulfill the condition.
+    --always-output|-A	Normally, when a comparison is made and succeeds, the
+			aspect ratios are not printed; with this flag, they are
+			always printed.
+    --success-output|-S	Normally, when a comparison is made and succeeds, the
+			aspect ratios are not printed; this flag inverts that,
+			so IMAGE-FILEs that pass the comparison have the aspect
+			ratios printed, and those that don't are suppressed.
 EXIT STATUS:
     0	Complete success.
     1	The comparison failed; at least one FILE did not pass it.
@@ -29,19 +38,22 @@ HELPTEXT
 getRatio()
 {
     local format=$'%w\t%h\n'
-    [ $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
+    [ "$isIncludeFilespec" -o $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
 
     local width height filespec exitStatus=
     while IFS=$'\t' read -r width height filespec || { exitStatus="$width"; break; }	# Exit status from the process substitution (<(identify)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
 	local ratio=$((100 * width / height))
 	printf "%d${filespec:+\\t}%s\\n" "$ratio" "$filespec"
-    done < <(identify -ping -format "$format" -- "$@" && printf 0 || printf 4)
+    done < <(eval "$(${TEST:+testeval --for identify --} "${TEST:-printf}" "${TEST:- %q}" identify -ping -format "$format" -- "$@")" && printf 0 || printf 4)
     return $exitStatus
 }
 
 compareOp=
 diffRatio=
+isIncludeFilespec=
+isAlwaysOutput=
+isSuccessOutput=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -51,29 +63,62 @@ do
 	--smaller|-s)	shift; ratio="${1:?}"; shift; compareOp=-lt;;
 	-lt|-le|-eq|-ne|-ge|-gt)
 			compareOp="$1"; shift; ratio="${1:?}"; shift;;
+
+	--with-filename|-f)
+			shift; isIncludeFilespec=t;;
+	--always-output|-A)
+			shift; isAlwaysOutput=t;;
+	--success-output|-S)
+			shift; isSuccessOutput=t;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
 if [ $# -eq 0 ]; then
-    printUsage "$0" >&2
+    printUsage "$0"
     exit 2
-fi
+elif [ -n "$ratio" ] && [[ ! "$ratio" =~ ^[[:digit:]]+$ ]]; then
+    echo "ERROR: Invalid PERCENTAGE: $ratio"
+    echo
+    printUsage "$0"
+    exit 2
+elif [ "$isAlwaysOutput" ] && [ "$isSuccessOutput" ]; then
+    echo 'ERROR: Cannot combine -A|--always-output with -S|--success-output.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+printResult()
+{
+    local ratio="${1:?}"; shift
+    local filespec="${1?}"; shift
+
+    [ "$isIncludeFilespec" ] || filespec=''
+    printf "%d${filespec:+\\t}%s\\n" $ratio "$filespec"
+}
 
 if [ -n "$compareOp" ]; then
     exitStatus=3
     compareStatus=0
     while IFS=$'\t' read -r fileRatio filespec || { exitStatus="$fileRatio"; break; }	# Exit status from the process substitution (<(getRatio)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
-	[ $fileRatio $compareOp $ratio ] || compareStatus=1
+	isChosen=; [ "$isAlwaysOutput" ] && isChosen=t
+	if [ $fileRatio $compareOp $ratio ]; then
+	    [ "$isSuccessOutput" ] && isChosen=t
+	else
+	    compareStatus=1
+	    [ "$isSuccessOutput" ] || isChosen=t
+	fi
+	[ "$isChosen" ] && printResult "$fileRatio" "$filespec"
     done < <(getRatio "$@"; printf %d "$?")
     exit $((exitStatus > 0 ? exitStatus : compareStatus))
 elif [ -n "$diffRatio" ]; then
     exitStatus=3
     while IFS=$'\t' read -r fileRatio filespec || { exitStatus="$fileRatio"; break; }	# Exit status from the process substitution (<(getRatio)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
-	printf "%d${filespec:+\\t}%s\\n" "$((fileRatio - diffRatio))" "$filespec"
+	printResult $((fileRatio - diffRatio)) "$filespec"
     done < <(getRatio "$@"; printf %d "$?")
     exit $exitStatus
 else
