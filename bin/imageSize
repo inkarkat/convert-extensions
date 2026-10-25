@@ -2,18 +2,35 @@
 
 : ${IMAGESIZE_SEPARATOR:=$'\t'}
 
-printUsage()
+getShortUsage()
 {
-    cat <<HELPTEXT
-Show the image width and height (tab-separated) (or relative to DIFF-FILE) of
-all passed IMAGE-FILE(s) (with appended filespec if multiple are given).
-HELPTEXT
-    echo
-    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '[-d|--diff DIFF-FILE] [--] IMAGE-FILE [...] [-?|-h|--help]'
-    echo
-    cat <<HELPTEXT
-Print the image width and height (tab-separated) of that IMAGE-FILE that
-fulfills the passed condition:
+    local usageSep
+    [ $# -gt 0 ] || set -- ''
+    while [ $# -gt 0 ]
+    do
+	local hadTopic=
+	case "$1" in
+	    ''|choose)
+		printf %s "${usageSep}${hadTopic:+ }" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height|--min-both|--max-both'; hadTopic=t;;&
+	    ''|compare)
+		printf %s "${usageSep}${hadTopic:+ }" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt SIZE|WxH'; hadTopic=t;;&
+	    ''|compare-options)
+		printf %s "${usageSep}${hadTopic:+ }" '[-A|--always-output|-S|--success-output]'; hadTopic=t;;&
+	    *)  [ "$hadTopic" ] || { echo "ERROR: Unknown short usage topic \"$1\"!" >&2; return 2; };;
+	esac
+	shift; usageSep=' '
+    done
+}
+getLongUsage()
+{
+    [ $# -gt 0 ] || set -- ''
+    while [ $# -gt 0 ]
+    do
+	local topic="$1"; shift
+	local hadTopic=
+	case "$topic" in
+	    ''|choose)
+		cat <<HELPTEXT
     --smallest		Print the dimensions of the smallest image (by area).
     --largest		Print the dimensions of the largest image (by area).
     --min		Print the dimensions of the image with the smallest sum
@@ -32,20 +49,11 @@ fulfills the passed condition:
 			from the same image).
     --max-both		Print the largest width and height (not necessarily
 			from the same image).
-    --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILEs that
-			fulfill the condition.
 HELPTEXT
-    echo
-    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height [-f|--with-filename] [--] IMAGE-FILE IMAGE-FILE [...]'
-    echo
-    cat <<HELPTEXT
-Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
-than SIZE|WxH.
-HELPTEXT
-    echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt SIZE|WxH [-f|--with-filename] [-A|--always-output|-S|--success-output] [--] IMAGE-FILE [...]'
-    echo
-    cat <<HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|compare-options)
+		cat <<HELPTEXT
     --always-output|-A	Normally, when a comparison is made and succeeds, the
 			dimensions are not printed; with this flag, they are
 			always printed.
@@ -53,6 +61,44 @@ HELPTEXT
 			dimensions are not printed; this flag inverts that, so
 			IMAGE-FILEs that pass the comparison have the dimensions
 			printed, and those that don't are suppressed.
+HELPTEXT
+		hadTopic=t
+		;;&
+	    *)  [ "$hadTopic" ] || { echo "ERROR: Unknown long usage topic \"$topic\"!" >&2; return 2; };;
+	esac
+    done
+}
+
+printUsage()
+{
+    cat <<HELPTEXT
+Show the image width and height (tab-separated) (or relative to DIFF-FILE) of
+all passed IMAGE-FILE(s) (with appended filespec if multiple are given).
+HELPTEXT
+    echo
+    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '[-d|--diff DIFF-FILE] [--] IMAGE-FILE [...] [-?|-h|--help]'
+    echo
+    cat <<HELPTEXT
+Print the image width and height (tab-separated) of that IMAGE-FILE that
+fulfills the passed condition:
+HELPTEXT
+    getLongUsage choose
+    cat <<HELPTEXT
+    --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILEs that
+			fulfill the condition.
+HELPTEXT
+    echo
+    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" "$(getShortUsage choose) [-f|--with-filename] [--] IMAGE-FILE IMAGE-FILE [...]"
+    echo
+    cat <<HELPTEXT
+Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
+than SIZE|WxH.
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" "$(getShortUsage compare) [-f|--with-filename] $(getShortUsage compare-options) [--] IMAGE-FILE [...]"
+    echo
+    getLongUsage compare-options
+    cat <<HELPTEXT
 EXIT STATUS:
     0	Complete success.
     1	The comparison failed; at least one FILE did not pass it.
@@ -98,6 +144,11 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--get-short-usage)
+			shift; getShortUsage "$@"; exit $?;;
+	--get-long-usage)
+			shift; getLongUsage "$@"; exit $?;;
+
 	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' isIncludeFilespec='' getDimensions "$1"); shift;;
 
 	--smallest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-lt;;
