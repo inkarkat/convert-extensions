@@ -1,6 +1,76 @@
 #!/bin/bash
 
+: ${IMAGESIZE_WHAT:=Print}
 : ${IMAGESIZE_SEPARATOR:=$'\t'}
+
+getShortUsage()
+{
+    local usageSep
+    [ $# -gt 0 ] || set -- ''
+    while [ $# -gt 0 ]
+    do
+	local hadTopic=
+	case "$1" in
+	    ''|choose)
+		printf %s "${usageSep}${hadTopic:+ }" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height|--min-both|--max-both'; hadTopic=t;;&
+	    ''|compare)
+		printf %s "${usageSep}${hadTopic:+ }" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt SIZE|WxH'; hadTopic=t;;&
+	    ''|compare-options)
+		printf %s "${usageSep}${hadTopic:+ }" '[-A|--always-output|-S|--success-output]'; hadTopic=t;;&
+	    *)  [ "$hadTopic" ] || { echo "ERROR: Unknown short usage topic \"$1\"!" >&2; return 2; };;
+	esac
+	shift; usageSep=' '
+    done
+}
+getLongUsage()
+{
+    [ $# -gt 0 ] || set -- ''
+    while [ $# -gt 0 ]
+    do
+	local topic="$1"; shift
+	local hadTopic=
+	case "$topic" in
+	    ''|choose)
+		cat <<HELPTEXT
+    --smallest		${IMAGESIZE_WHAT} the dimensions of the smallest image
+			(by area).
+    --largest		${IMAGESIZE_WHAT} the dimensions of the largest image
+			(by area).
+    --min		${IMAGESIZE_WHAT} the dimensions of the image with the
+			smallest sum of width and height.
+    --max		${IMAGESIZE_WHAT} the dimensions of the image with the
+			largest sum of width and height.
+    --min-width		${IMAGESIZE_WHAT} the dimensions of the image with the
+			smallest width.
+    --max-width		${IMAGESIZE_WHAT} the dimensions of the image with the
+			largest width.
+    --min-height	${IMAGESIZE_WHAT} the dimensions of the image with the
+			smallest height.
+    --max-height	${IMAGESIZE_WHAT} the dimensions of the image with the
+			largest height.
+    --min-both		${IMAGESIZE_WHAT} the smallest width and height (not
+			necessarily from the same image).
+    --max-both		${IMAGESIZE_WHAT} the largest width and height (not
+			necessarily from the same image).
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|compare-options)
+		cat <<HELPTEXT
+    --always-output|-A	Normally, when a comparison is made and succeeds, the
+			dimensions are not printed; with this flag, they are
+			always printed.
+    --success-output|-S	Normally, when a comparison is made and succeeds, the
+			dimensions are not printed; this flag inverts that, so
+			IMAGE-FILEs that pass the comparison have the dimensions
+			printed, and those that don't are suppressed.
+HELPTEXT
+		hadTopic=t
+		;;&
+	    *)  [ "$hadTopic" ] || { echo "ERROR: Unknown long usage topic \"$topic\"!" >&2; return 2; };;
+	esac
+    done
+}
 
 printUsage()
 {
@@ -14,45 +84,24 @@ HELPTEXT
     cat <<HELPTEXT
 Print the image width and height (tab-separated) of that IMAGE-FILE that
 fulfills the passed condition:
-    --smallest		Print the dimensions of the smallest image (by area).
-    --largest		Print the dimensions of the largest image (by area).
-    --min		Print the dimensions of the image with the smallest sum
-			of width and height.
-    --max		Print the dimensions of the image with the largest sum
-			of width and height.
-    --min-width		Print the dimensions of the image with the smallest
-			width.
-    --max-width		Print the dimensions of the image with the largest
-			width.
-    --min-height	Print the dimensions of the image with the smallest
-			height.
-    --max-height	Print the dimensions of the image with the largest
-			height.
-    --min-both		Print the smallest width and height (not necessarily
-			from the same image).
-    --max-both		Print the largest width and height (not necessarily
-			from the same image).
+HELPTEXT
+    getLongUsage choose
+    cat <<HELPTEXT
     --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILEs that
 			fulfill the condition.
 HELPTEXT
     echo
-    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height [-f|--with-filename] [--] IMAGE-FILE IMAGE-FILE [...]'
+    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" "$(getShortUsage choose) [-f|--with-filename] [--] IMAGE-FILE IMAGE-FILE [...]"
     echo
     cat <<HELPTEXT
 Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
 than SIZE|WxH.
 HELPTEXT
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt SIZE|WxH [-f|--with-filename] [-A|--always-output|-S|--success-output] [--] IMAGE-FILE [...]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "$(getShortUsage compare) [-f|--with-filename] $(getShortUsage compare-options) [--] IMAGE-FILE [...]"
     echo
+    getLongUsage compare-options
     cat <<HELPTEXT
-    --always-output|-A	Normally, when a comparison is made and succeeds, the
-			dimensions are not printed; with this flag, they are
-			always printed.
-    --success-output|-S	Normally, when a comparison is made and succeeds, the
-			dimensions are not printed; this flag inverts that, so
-			IMAGE-FILEs that pass the comparison have the dimensions
-			printed, and those that don't are suppressed.
 EXIT STATUS:
     0	Complete success.
     1	The comparison failed; at least one FILE did not pass it.
@@ -94,40 +143,70 @@ compareOp=
 compareConjunction=-a
 isAlwaysOutput=
 isSuccessOutput=
+option() { :; }
+parameter() { :; }
+parameterToSep() { :; }
+argCount() { :; }
+endOfOptionsAndParameters() { :; }
+noUnderstand() { :; }
+typeset -A understandsSubtopics=()
+isUnderstandSubtopic() {
+    [ $# -gt 0 -a ${#understandsSubtopics[@]} -gt 0 ] || return 0
+    local subtopic; for subtopic
+    do
+	[ "${understandsSubtopics["$subtopic"]}" ] && return 0
+    done
+    return 1
+}
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' isIncludeFilespec='' getDimensions "$1"); shift;;
+	--get-short-usage)
+			shift; getShortUsage "$@"; exit $?;;
+	--get-long-usage)
+			shift; getLongUsage "$@"; exit $?;;
+	--understand-for)
+			shift; understandsSubtopics["$1"]=t; shift;;
+	--understands)	shift
+			option() { isUnderstandSubtopic "$@" || exit 1; printf 1; exit 0; }
+			parameter() { isUnderstandSubtopic "$@" || exit 1; printf 2; exit 0; }
+			parameterToSep() { argCount "$@"; }
+			argCount() { local argCount="${1:?}"; shift; isUnderstandSubtopic "$@" || exit 1; printf $argCount; exit 0; }
+			endOfOptionsAndParameters() { exit 99; }
+			noUnderstand() { exit 1; }
+			;;
 
-	--smallest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-lt;;
-	--largest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-gt;;
-	--min)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-lt;;
-	--max)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-gt;;
-	--min-width)	shift; selectors=('fileWidth');			chooseOp=-lt;;
-	--max-width)	shift; selectors=('fileWidth');			chooseOp=-gt;;
-	--min-height)	shift; selectors=('fileHeight');		chooseOp=-lt;;
-	--max-height)	shift; selectors=('fileHeight');		chooseOp=-gt;;
-	--min-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-lt;;
-	--max-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-gt;;
+	--diff|-d)	parameter diff; shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' isIncludeFilespec='' getDimensions "$1"); shift;;
 
-	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
-	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
+	--smallest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-lt; option choose;;
+	--largest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-gt; option choose;;
+	--min)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-lt; option choose;;
+	--max)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-gt; option choose;;
+	--min-width)	shift; selectors=('fileWidth');			chooseOp=-lt; option choose;;
+	--max-width)	shift; selectors=('fileWidth');			chooseOp=-gt; option choose;;
+	--min-height)	shift; selectors=('fileHeight');		chooseOp=-lt; option choose;;
+	--max-height)	shift; selectors=('fileHeight');		chooseOp=-gt; option choose;;
+	--min-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-lt; option choose;;
+	--max-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-gt; option choose;;
+
+	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt; parameter compare;;
+	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt; parameter compare;;
 
 	-ne)		compareConjunction=-o;;&
 	-lt|-le|-eq|-ne|-ge|-gt)
-			compareOp="$1"; shift; parseDimensions "$1"; shift;;
+			compareOp="$1"; shift; parseDimensions "$1"; shift; parameter compare;;
 
 	--with-filename|-f)
-			shift; isIncludeFilespec=t;;
+			shift; isIncludeFilespec=t; option general;;
 	--always-output|-A)
-			shift; isAlwaysOutput=t;;
+			shift; isAlwaysOutput=t; option compare-options;;
 	--success-output|-S)
-			shift; isSuccessOutput=t;;
+			shift; isSuccessOutput=t; option compare-options;;
 
-	--)		shift; break;;
-	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
-	*)		break;;
+	--)		endOfOptionsAndParameters; shift; break;;
+	-*)		noUnderstand; { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		endOfOptionsAndParameters; break;;
     esac
 done
 if [ $# -eq 0 ]; then

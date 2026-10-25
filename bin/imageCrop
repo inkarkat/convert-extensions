@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '(-c|--crop GEOMETRY|[-s|--size GEOMETRY] [-g|--gravity GRAVITY]) [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "-c|--crop GEOMETRY|([-s|--size GEOMETRY|$(imageSize --get-short-usage choose 2>/dev/null)] [-g|--gravity GRAVITY]) [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -28,8 +28,13 @@ HELPDESCRIPTION
     --crop|-c GEOMETRY	Crop to GEOMETRY; this purely cuts off parts of the
 			image, and does not extend the image if it is smaller
 			than GEOMETRY.
+			By default, it crops to the smallest dimension of all
+			passed IMAGE-FILEs.
     --size|-s GEOMETRY	Crop (or extend) borders to GEOMETRY; default is the
 			smallest dimensions of all passed IMAGE-FILE(s).
+HELPTEXT
+    IMAGESIZE_WHAT='Crop to' imageSize --get-long-usage choose 2>/dev/null
+    cat <<HELPTEXT
     --gravity|-g GRAVITY
 			Use the ImageMagick GRAVITY for cropping; default is
 			center.
@@ -43,6 +48,7 @@ isForce=
 cropGeometry=
 extentGeometry=
 gravity=center
+typeset -a imageSizeArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -52,7 +58,15 @@ do
 	--gravity|-g)	shift; gravity="${1?}"; shift;;
 	--force|-f)	shift; isForce=t;;
 	--)		shift; break;;
-	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	-*)		if argCount=$(imageSize --understand-for choose --understands "$@"); then
+			    imageSizeArgs+=("${@:1:argCount}")
+			    shift $argCount
+			elif [ $? -eq 2 ]; then
+			    exit 2
+			else
+			    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2
+			fi
+			;;
 	*)		break;;
     esac
 done
@@ -61,7 +75,8 @@ if [ $# -eq 0 ]; then
     exit 2
 fi
 
-if [ -z "$cropGeometry" -a -z "$extentGeometry" ]; then
+if [ -z "$cropGeometry" -a -z "$extentGeometry" -a ${#imageSizeArgs[@]} -eq 0 ]; then
+    # Note: This is a built-in implementation of imageSize --min-both.
     let minWidth=2147483647
     let minHeight=2147483647
     while IFS=$'\t' read -r width height
@@ -71,6 +86,8 @@ if [ -z "$cropGeometry" -a -z "$extentGeometry" ]; then
     done < <(identify -format $'%w\t%h\n' "$@")
     extentGeometry="${minWidth}x${minHeight}"
     printf >&2 'Note: Using geometry %s based on the smallest dimensions of all passed files.\n' "$extentGeometry"
+elif [ ${#imageSizeArgs[@]} -gt 0 ]; then
+    extentGeometry="$(IMAGESIZE_SEPARATOR=x imageSize "${imageSizeArgs[@]}" -- "$@")" || exit $?
 fi
 
 typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")

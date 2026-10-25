@@ -6,7 +6,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-s|--size GEOMETRY] [--filter FILTER] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-s|--size GEOMETRY|$(imageSize --get-short-usage choose 2>/dev/null)] [--filter FILTER] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -27,6 +27,9 @@ HELPDESCRIPTION
     echo
     cat <<HELPTEXT
     --size|-s GEOMETRY	Resize to GEOMETRY; default is ${IMAGERESIZE_GEOMETRY}.
+HELPTEXT
+    IMAGESIZE_WHAT='Resize to' imageSize --get-long-usage choose 2>/dev/null
+    cat <<HELPTEXT
     --filter FILTER	Use the ImageMagick FILTER.
     --force|-f		Also process files where the target already exists; by
 			default, only files that have not yet been resized
@@ -36,6 +39,7 @@ HELPTEXT
 
 isForce=
 geometry=
+typeset -a imageSizeArgs=()
 filter=Mitchell
 while [ $# -ne 0 ]
 do
@@ -45,13 +49,25 @@ do
 	--filter)	shift; filter="${1?}"; shift;;
 	--force|-f)	shift; isForce=t;;
 	--)		shift; break;;
-	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	-*)		if argCount=$(imageSize --understand-for choose --understands "$@"); then
+			    imageSizeArgs+=("${@:1:argCount}")
+			    shift $argCount
+			elif [ $? -eq 2 ]; then
+			    exit 2
+			else
+			    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2
+			fi
+			;;
 	*)		break;;
     esac
 done
 if [ $# -eq 0 ]; then
     printUsage "$0" >&2
     exit 2
+fi
+
+if [ ${#imageSizeArgs[@]} -gt 0 ]; then
+    geometry="$(IMAGESIZE_SEPARATOR=x imageSize "${imageSizeArgs[@]}" -- "$@")" || exit $?
 fi
 
 typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
