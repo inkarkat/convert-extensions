@@ -28,6 +28,10 @@ fulfills the passed condition:
 			height.
     --max-height	Print the dimensions of the image with the largest
 			height.
+    --min-both		Print the smallest width and height (not necessarily
+			from the same image).
+    --max-both		Print the largest width and height (not necessarily
+			from the same image).
     --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILEs that
 			fulfill the condition.
 HELPTEXT
@@ -103,6 +107,8 @@ do
 	--max-width)	shift; selectors=('fileWidth');			chooseOp=-gt;;
 	--min-height)	shift; selectors=('fileHeight');		chooseOp=-lt;;
 	--max-height)	shift; selectors=('fileHeight');		chooseOp=-gt;;
+	--min-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-lt;;
+	--max-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-gt;;
 
 	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
 	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
@@ -161,6 +167,22 @@ printResults()
 	0|1)
 	    [ ${#chosenResults0[@]} -eq 0 ] \
 		|| printf '%s\n' "${chosenResults0[@]}"
+	    ;;
+	2)  if [ "$isIncludeFilespec" ]; then
+		# Take all results, but don't print duplicates if an IMAGE-FILE matches both
+		# selectors.
+		typeset -A seen=()
+		for result in "${chosenResults0[@]}" "${chosenResults1[@]}"; do
+		    if [ ! "${seen[$result]}" ]; then
+			printf '%s\n' "$result"
+			seen["$result"]=t
+		    fi
+		done
+	    else
+		# Each result column should have the same selected value; take the first result
+		# from each column.
+		printf '%d%s%d\n' "${chosenResults0[0]%%${IMAGESIZE_SEPARATOR}*}" "$IMAGESIZE_SEPARATOR" "${chosenResults1[0]#*${IMAGESIZE_SEPARATOR}}"
+	    fi
 	    ;;
 	*)  printf >&2 'ASSERT: Unhanded number of selectors: %s\n' "${#selectors[@]}"; exit 3;;
 	esac
