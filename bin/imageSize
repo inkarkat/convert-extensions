@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${IMAGESIZE_WHAT:=Print}
 : ${IMAGESIZE_SEPARATOR:=$'\t'}
 
 getShortUsage()
@@ -31,24 +32,26 @@ getLongUsage()
 	case "$topic" in
 	    ''|choose)
 		cat <<HELPTEXT
-    --smallest		Print the dimensions of the smallest image (by area).
-    --largest		Print the dimensions of the largest image (by area).
-    --min		Print the dimensions of the image with the smallest sum
-			of width and height.
-    --max		Print the dimensions of the image with the largest sum
-			of width and height.
-    --min-width		Print the dimensions of the image with the smallest
-			width.
-    --max-width		Print the dimensions of the image with the largest
-			width.
-    --min-height	Print the dimensions of the image with the smallest
-			height.
-    --max-height	Print the dimensions of the image with the largest
-			height.
-    --min-both		Print the smallest width and height (not necessarily
-			from the same image).
-    --max-both		Print the largest width and height (not necessarily
-			from the same image).
+    --smallest		${IMAGESIZE_WHAT} the dimensions of the smallest image
+			(by area).
+    --largest		${IMAGESIZE_WHAT} the dimensions of the largest image
+			(by area).
+    --min		${IMAGESIZE_WHAT} the dimensions of the image with the
+			smallest sum of width and height.
+    --max		${IMAGESIZE_WHAT} the dimensions of the image with the
+			largest sum of width and height.
+    --min-width		${IMAGESIZE_WHAT} the dimensions of the image with the
+			smallest width.
+    --max-width		${IMAGESIZE_WHAT} the dimensions of the image with the
+			largest width.
+    --min-height	${IMAGESIZE_WHAT} the dimensions of the image with the
+			smallest height.
+    --max-height	${IMAGESIZE_WHAT} the dimensions of the image with the
+			largest height.
+    --min-both		${IMAGESIZE_WHAT} the smallest width and height (not
+			necessarily from the same image).
+    --max-both		${IMAGESIZE_WHAT} the largest width and height (not
+			necessarily from the same image).
 HELPTEXT
 		hadTopic=t
 		;;&
