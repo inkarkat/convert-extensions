@@ -63,6 +63,11 @@ EOF
 EOF
 }
 
+@test "compare ne fails and prints failing dimensions with filenames" {
+    run -1 imageSize -ne 300x200 "${IMAGES[@]}"
+    assert_output $'300\t200'
+}
+
 @test "compare ge succeeds and prints nothing" {
     run -0 imageSize -ge 25x10 "${IMAGES[@]}"
     assert_output ''

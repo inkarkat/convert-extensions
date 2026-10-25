@@ -91,6 +91,7 @@ typeset -a selectors=()
 chooseOp=
 isIncludeFilespec=
 compareOp=
+compareConjunction=-a
 isAlwaysOutput=
 isSuccessOutput=
 while [ $# -ne 0 ]
@@ -115,6 +116,7 @@ do
 	--with-filename|-f)
 			shift; isIncludeFilespec=t;;
 
+	-ne)		compareConjunction=-o;;&
 	-lt|-le|-eq|-ne|-ge|-gt)
 			compareOp="$1"; shift; parseDimensions "$1"; shift;;
 	--always-output|-A)
@@ -194,7 +196,7 @@ if [ -n "$compareOp" ]; then
     while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
 	isChosen=; [ "$isAlwaysOutput" ] && isChosen=t
-	if [ $fileWidth $compareOp $width -a $fileHeight $compareOp $height ]; then
+	if [ $fileWidth $compareOp $width $compareConjunction $fileHeight $compareOp $height ]; then
 	    [ "$isSuccessOutput" ] && isChosen=t
 	else
 	    compareStatus=1
