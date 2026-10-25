@@ -1,24 +1,58 @@
 #!/bin/bash
 
-: ${IMAGESIZE_SEPARATOR:=\\t}
+: ${IMAGESIZE_SEPARATOR:=$'\t'}
 
 printUsage()
 {
     cat <<HELPTEXT
 Show the image width and height (tab-separated) (or relative to DIFF-FILE) of
-all passed IMAGE-FILE(s) (with appended filename if multiple are given).
+all passed IMAGE-FILE(s) (with appended filespec if multiple are given).
 HELPTEXT
     echo
     printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '[-d|--diff DIFF-FILE] [--] IMAGE-FILE [...] [-?|-h|--help]'
+    echo
+    cat <<HELPTEXT
+Print the image width and height (tab-separated) of that IMAGE-FILE that
+fulfills the passed condition:
+    --smallest		Print the dimensions of the smallest image (by area).
+    --largest		Print the dimensions of the largest image (by area).
+    --min		Print the dimensions of the image with the smallest sum
+			of width and height.
+    --max		Print the dimensions of the image with the largest sum
+			of width and height.
+    --min-width		Print the dimensions of the image with the smallest
+			width.
+    --max-width		Print the dimensions of the image with the largest
+			width.
+    --min-height	Print the dimensions of the image with the smallest
+			height.
+    --max-height	Print the dimensions of the image with the largest
+			height.
+    --min-both		Print the smallest width and height (not necessarily
+			from the same image).
+    --max-both		Print the largest width and height (not necessarily
+			from the same image).
+    --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILEs that
+			fulfill the condition.
+HELPTEXT
+    echo
+    printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '--smallest|--largest|--min|--max|--min-width|--max-width|--min-height|--max-height [-f|--with-filename] [--] IMAGE-FILE IMAGE-FILE [...]'
     echo
     cat <<HELPTEXT
 Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
 than SIZE|WxH.
 HELPTEXT
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt SIZE|WxH [--] IMAGE-FILE [...]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-g|--greater|-s|--smaller|-lt|-le|-eq|-ne|-ge|-gt SIZE|WxH [-f|--with-filename] [-A|--always-output|-S|--success-output] [--] IMAGE-FILE [...]'
     echo
     cat <<HELPTEXT
+    --always-output|-A	Normally, when a comparison is made and succeeds, the
+			dimensions are not printed; with this flag, they are
+			always printed.
+    --success-output|-S	Normally, when a comparison is made and succeeds, the
+			dimensions are not printed; this flag inverts that, so
+			IMAGE-FILEs that pass the comparison have the dimensions
+			printed, and those that don't are suppressed.
 EXIT STATUS:
     0	Complete success.
     1	The comparison failed; at least one FILE did not pass it.
@@ -29,10 +63,10 @@ HELPTEXT
 
 getDimensions()
 {
-    local format; printf -v format "%%w${IMAGESIZE_SEPARATOR:?}%%h\\n"
+    local format; printf -v format "%%w%s%%h\\n" "${IMAGESIZE_SEPARATOR:?}"
     [ $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
 
-    identify -ping -format "$format" -- "$@" || return 4
+    eval "$(${TEST:+testeval --for identify --} "${TEST:-printf}" "${TEST:- %q}" identify -ping -format "$format" -- "$@")" || return 4
 }
 
 parseDimensions()
@@ -51,42 +85,154 @@ parseDimensions()
     fi >&2
 }
 
-compareOp=
 diffHeight=
 diffWidth=
+typeset -a selectors=()
+chooseOp=
+isIncludeFilespec=
+compareOp=
+compareConjunction=-a
+isAlwaysOutput=
+isSuccessOutput=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$1"); shift;;
+	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' getDimensions "$1"); shift;;
+
+	--smallest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-lt;;
+	--largest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-gt;;
+	--min)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-lt;;
+	--max)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-gt;;
+	--min-width)	shift; selectors=('fileWidth');			chooseOp=-lt;;
+	--max-width)	shift; selectors=('fileWidth');			chooseOp=-gt;;
+	--min-height)	shift; selectors=('fileHeight');		chooseOp=-lt;;
+	--max-height)	shift; selectors=('fileHeight');		chooseOp=-gt;;
+	--min-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-lt;;
+	--max-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-gt;;
+
 	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
 	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
+	--with-filename|-f)
+			shift; isIncludeFilespec=t;;
+
+	-ne)		compareConjunction=-o;;&
 	-lt|-le|-eq|-ne|-ge|-gt)
 			compareOp="$1"; shift; parseDimensions "$1"; shift;;
+	--always-output|-A)
+			shift; isAlwaysOutput=t;;
+	--success-output|-S)
+			shift; isSuccessOutput=t;;
+
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
 if [ $# -eq 0 ]; then
-    printUsage "$0" >&2
+    printUsage "$0"
     exit 2
-fi
+elif [ "$isAlwaysOutput" ] && [ "$isSuccessOutput" ]; then
+    echo 'ERROR: Cannot combine -A|--always-output with -S|--success-output.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+typeset -a chosenResults0=()
+typeset -A uniqueResults0=()
+typeset -a chosenResults1=()
+typeset -A uniqueResults1=()
+clearResults()
+{
+    local -n chosenResultsRef="chosenResults${1:?}" uniqueResultsRef="uniqueResults${1:?}"; shift
+    chosenResultsRef=()
+    uniqueResultsRef=()
+}
+addUniqueResult()
+{
+    local -n chosenResultsRef="chosenResults${1:?}" uniqueResultsRef="uniqueResults${1:?}"; shift
+    local width="${1:?}"; shift
+    local height="${1:?}"; shift
+    local filespec="${1?}"; shift
+
+    [ "$isIncludeFilespec" ] || filespec=''
+    printf -v result "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s" "$width" "$height" "$filespec"
+    if [ ! "${uniqueResultsRef[$result]}" ]; then
+	chosenResultsRef+=("$result")
+	uniqueResultsRef["$result"]=t
+    fi
+}
+printResults()
+{
+    case ${#selectors[@]} in
+	0|1)
+	    [ ${#chosenResults0[@]} -eq 0 ] \
+		|| printf '%s\n' "${chosenResults0[@]}"
+	    ;;
+	2)  if [ "$isIncludeFilespec" ]; then
+		# Take all results, but don't print duplicates if an IMAGE-FILE matches both
+		# selectors.
+		typeset -A seen=()
+		for result in "${chosenResults0[@]}" "${chosenResults1[@]}"; do
+		    if [ ! "${seen[$result]}" ]; then
+			printf '%s\n' "$result"
+			seen["$result"]=t
+		    fi
+		done
+	    else
+		# Each result column should have the same selected value; take the first result
+		# from each column.
+		printf '%d%s%d\n' "${chosenResults0[0]%%${IMAGESIZE_SEPARATOR}*}" "$IMAGESIZE_SEPARATOR" "${chosenResults1[0]#*${IMAGESIZE_SEPARATOR}}"
+	    fi
+	    ;;
+	*)  printf >&2 'ASSERT: Unhanded number of selectors: %s\n' "${#selectors[@]}"; exit 3;;
+	esac
+}
 
 if [ -n "$compareOp" ]; then
     exitStatus=3
     compareStatus=0
     while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
-	[ $fileWidth $compareOp $width -a $fileHeight $compareOp $height ] || compareStatus=1
-    done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
+	isChosen=; [ "$isAlwaysOutput" ] && isChosen=t
+	if [ $fileWidth $compareOp $width $compareConjunction $fileHeight $compareOp $height ]; then
+	    [ "$isSuccessOutput" ] && isChosen=t
+	else
+	    compareStatus=1
+	    [ "$isSuccessOutput" ] || isChosen=t
+	fi
+	[ "$isChosen" ] && addUniqueResult 0 "$fileWidth" "$fileHeight" "$filespec"
+    done < <(IMAGESIZE_SEPARATOR=$'\t' getDimensions "$@"; printf %d "$?")
+    printResults
     exit $((exitStatus > 0 ? exitStatus : compareStatus))
 elif [ -n "$diffWidth" -a -n "$diffHeight" ]; then
     exitStatus=3
     while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
     do
 	printf "%d${IMAGESIZE_SEPARATOR}%d${filespec:+\\t}%s\\n" "$((fileWidth - diffWidth))" "$((fileHeight - diffHeight))" "$filespec"
-    done < <(IMAGESIZE_SEPARATOR=\\t getDimensions "$@"; printf %d "$?")
+    done < <(IMAGESIZE_SEPARATOR=$'\t' getDimensions "$@"; printf %d "$?")
+    exit $exitStatus
+elif [ ${#selectors[@]} -gt 0 ]; then
+    exitStatus=3
+    typeset -a chosenValues=()
+    while IFS=$'\t' read -r fileWidth fileHeight filespec || { exitStatus="$fileWidth"; break; }	# Exit status from the process substitution (<(getDimensions)) is lost; return the actual exit status via an incomplete (i.e. missing the newline) last line.
+    do
+	for ((i = 0; i < ${#selectors[@]}; i++))
+	do
+	    selector="${selectors[i]}"
+	    currentValue=$(($selector))
+	    chosenValue="${chosenValues[i]}"
+	    if [ -z "$chosenValue" ] || [ $currentValue $chooseOp $chosenValue ]; then
+		chosenValues[i]=$currentValue
+		clearResults $i
+		addUniqueResult $i "$fileWidth" "$fileHeight" "$filespec"
+	    elif [ $currentValue -eq $chosenValue ]; then
+		addUniqueResult $i "$fileWidth" "$fileHeight" "$filespec"
+	    fi
+	done
+    done < <(IMAGESIZE_SEPARATOR=$'\t' getDimensions "$@"; printf %d "$?")
+    printResults
     exit $exitStatus
 else
     getDimensions "$@"
