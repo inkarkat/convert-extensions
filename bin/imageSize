@@ -64,7 +64,7 @@ HELPTEXT
 getDimensions()
 {
     local format; printf -v format "%%w%s%%h\\n" "${IMAGESIZE_SEPARATOR:?}"
-    [ $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
+    [ "$isIncludeFilespec" -o $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
 
     eval "$(${TEST:+testeval --for identify --} "${TEST:-printf}" "${TEST:- %q}" identify -ping -format "$format" -- "$@")" || return 4
 }
@@ -98,7 +98,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' getDimensions "$1"); shift;;
+	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' isIncludeFilespec='' getDimensions "$1"); shift;;
 
 	--smallest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-lt;;
 	--largest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-gt;;
@@ -113,12 +113,13 @@ do
 
 	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
 	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
-	--with-filename|-f)
-			shift; isIncludeFilespec=t;;
 
 	-ne)		compareConjunction=-o;;&
 	-lt|-le|-eq|-ne|-ge|-gt)
 			compareOp="$1"; shift; parseDimensions "$1"; shift;;
+
+	--with-filename|-f)
+			shift; isIncludeFilespec=t;;
 	--always-output|-A)
 			shift; isAlwaysOutput=t;;
 	--success-output|-S)

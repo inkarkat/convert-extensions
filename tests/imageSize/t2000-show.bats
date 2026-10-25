@@ -7,6 +7,11 @@ load fixture
     assert_output $'640\t480'
 }
 
+@test "show size of single image with filename" {
+    run -0 imageSize --with-filename foo-640x480.jpg
+    assert_output $'640\t480\tfoo'
+}
+
 @test "show sizes of two images" {
     run -0 imageSize foo-640x480.jpg bar-320x200.jpg
     assert_output - <<'EOF'
