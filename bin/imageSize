@@ -140,6 +140,21 @@ compareOp=
 compareConjunction=-a
 isAlwaysOutput=
 isSuccessOutput=
+option() { :; }
+parameter() { :; }
+parameterToSep() { :; }
+argCount() { :; }
+endOfOptionsAndParameters() { :; }
+noUnderstand() { :; }
+typeset -A understandsSubtopics=()
+isUnderstandSubtopic() {
+    [ $# -gt 0 -a ${#understandsSubtopics[@]} -gt 0 ] || return 0
+    local subtopic; for subtopic
+    do
+	[ "${understandsSubtopics["$subtopic"]}" ] && return 0
+    done
+    return 1
+}
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -148,37 +163,47 @@ do
 			shift; getShortUsage "$@"; exit $?;;
 	--get-long-usage)
 			shift; getLongUsage "$@"; exit $?;;
+	--understand-for)
+			shift; understandsSubtopics["$1"]=t; shift;;
+	--understands)	shift
+			option() { isUnderstandSubtopic "$@" || exit 1; printf 1; exit 0; }
+			parameter() { isUnderstandSubtopic "$@" || exit 1; printf 2; exit 0; }
+			parameterToSep() { argCount "$@"; }
+			argCount() { local argCount="${1:?}"; shift; isUnderstandSubtopic "$@" || exit 1; printf $argCount; exit 0; }
+			endOfOptionsAndParameters() { exit 99; }
+			noUnderstand() { exit 1; }
+			;;
 
-	--diff|-d)	shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' isIncludeFilespec='' getDimensions "$1"); shift;;
+	--diff|-d)	parameter diff; shift; { IFS=$'\t' read -r diffWidth diffHeight || { exit $diffHeight; }; } < <(IMAGESIZE_SEPARATOR=$'\t' isIncludeFilespec='' getDimensions "$1"); shift;;
 
-	--smallest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-lt;;
-	--largest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-gt;;
-	--min)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-lt;;
-	--max)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-gt;;
-	--min-width)	shift; selectors=('fileWidth');			chooseOp=-lt;;
-	--max-width)	shift; selectors=('fileWidth');			chooseOp=-gt;;
-	--min-height)	shift; selectors=('fileHeight');		chooseOp=-lt;;
-	--max-height)	shift; selectors=('fileHeight');		chooseOp=-gt;;
-	--min-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-lt;;
-	--max-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-gt;;
+	--smallest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-lt; option choose;;
+	--largest)	shift; selectors=('fileWidth * fileHeight');	chooseOp=-gt; option choose;;
+	--min)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-lt; option choose;;
+	--max)		shift; selectors=('fileWidth + fileHeight');	chooseOp=-gt; option choose;;
+	--min-width)	shift; selectors=('fileWidth');			chooseOp=-lt; option choose;;
+	--max-width)	shift; selectors=('fileWidth');			chooseOp=-gt; option choose;;
+	--min-height)	shift; selectors=('fileHeight');		chooseOp=-lt; option choose;;
+	--max-height)	shift; selectors=('fileHeight');		chooseOp=-gt; option choose;;
+	--min-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-lt; option choose;;
+	--max-both)	shift; selectors=('fileWidth' 'fileHeight');	chooseOp=-gt; option choose;;
 
-	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt;;
-	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt;;
+	--greater|-g)	shift; parseDimensions "$1"; shift; compareOp=-gt; parameter compare;;
+	--smaller|-s)	shift; parseDimensions "$1"; shift; compareOp=-lt; parameter compare;;
 
 	-ne)		compareConjunction=-o;;&
 	-lt|-le|-eq|-ne|-ge|-gt)
-			compareOp="$1"; shift; parseDimensions "$1"; shift;;
+			compareOp="$1"; shift; parseDimensions "$1"; shift; parameter compare;;
 
 	--with-filename|-f)
-			shift; isIncludeFilespec=t;;
+			shift; isIncludeFilespec=t; option general;;
 	--always-output|-A)
-			shift; isAlwaysOutput=t;;
+			shift; isAlwaysOutput=t; option compare-options;;
 	--success-output|-S)
-			shift; isSuccessOutput=t;;
+			shift; isSuccessOutput=t; option compare-options;;
 
-	--)		shift; break;;
-	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
-	*)		break;;
+	--)		endOfOptionsAndParameters; shift; break;;
+	-*)		noUnderstand; { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		endOfOptionsAndParameters; break;;
     esac
 done
 if [ $# -eq 0 ]; then
