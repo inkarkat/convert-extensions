@@ -72,42 +72,54 @@ HELPTEXT
     done
 }
 
-printUsage()
+LONGUSAGE=
+printLongUsage()
 {
-    cat <<HELPTEXT
+    $LONGUSAGE cat <<HELPTEXT
 Show the image width and height (tab-separated) (or relative to DIFF-FILE) of
 all passed IMAGE-FILE(s) (with appended filespec if multiple are given).
 HELPTEXT
-    echo
+    $LONGUSAGE echo
     printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" '[-d|--diff DIFF-FILE] [--] IMAGE-FILE [...] [-?|-h|--help]'
-    echo
-    cat <<HELPTEXT
+    $LONGUSAGE echo
+    $LONGUSAGE cat <<HELPTEXT
 Print the image width and height (tab-separated) of that IMAGE-FILE that
 fulfills the passed condition:
 HELPTEXT
-    getLongUsage choose
-    cat <<HELPTEXT
+    $LONGUSAGE getLongUsage choose
+    $LONGUSAGE cat <<HELPTEXT
     --with-filename|-f	Append a tab and the filespec(s) of all IMAGE-FILEs that
 			fulfill the condition.
 HELPTEXT
-    echo
+    $LONGUSAGE echo
     printf "Usage: [IMAGESIZE_SEPARATOR=\$'\\\\t'] %q %s\\n" "$(basename "$1")" "$(getShortUsage choose) [-f|--with-filename] [--] IMAGE-FILE IMAGE-FILE [...]"
-    echo
-    cat <<HELPTEXT
+    $LONGUSAGE echo
+    $LONGUSAGE cat <<HELPTEXT
 Test whether both width and height of [all] IMAGE-FILE[s] is greater / smaller
 than SIZE|WxH.
 HELPTEXT
-    echo
+    $LONGUSAGE echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "$(getShortUsage compare) [-f|--with-filename] $(getShortUsage compare-options) [--] IMAGE-FILE [...]"
-    echo
-    getLongUsage compare-options
-    cat <<HELPTEXT
+    $LONGUSAGE echo
+    $LONGUSAGE getLongUsage compare-options
+    $LONGUSAGE cat <<HELPTEXT
 EXIT STATUS:
     0	Complete success.
     1	The comparison failed; at least one FILE did not pass it.
     2	Bad invocation, wrong or missing command-line arguments.
     4	Some of the passed FILE(s) do not exist.
 HELPTEXT
+}
+printShortUsage()
+{
+    LONGUSAGE=: printLongUsage "$1"
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
 }
 
 getDimensions()
@@ -161,7 +173,7 @@ isUnderstandSubtopic() {
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--get-short-usage)
 			shift; getShortUsage "$@"; exit $?;;
 	--get-long-usage)
