@@ -66,7 +66,7 @@ getDimensions()
     local format; printf -v format "%%w%s%%h\\n" "${IMAGESIZE_SEPARATOR:?}"
     [ $# -gt 1 ] && format="${format%$'\n'}"$'\t%f\n'
 
-    identify -ping -format "$format" -- "$@" || return 4
+    eval "$(${TEST:+testeval --for identify --} "${TEST:-printf}" "${TEST:- %q}" identify -ping -format "$format" -- "$@")" || return 4
 }
 
 parseDimensions()
