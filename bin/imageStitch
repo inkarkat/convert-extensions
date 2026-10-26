@@ -112,6 +112,7 @@ if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
     exit 99
 else
     "${MAGICK_COMMAND[@]}" "${uniqueSourceFilespecs[@]}" \
-	"${magickOperators[@]}" -geometry +0+0 -define png:compression-level=9 \
-	"$targetFilespec"
+	    "${magickOperators[@]}" -geometry +0+0 -define png:compression-level=9 \
+	    "$targetFilespec" \
+	&& printf '%s\n' "$targetFilespec"
 fi

@@ -96,9 +96,15 @@ do
     if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
 	printf >&2 'Skipping existing %s\n' "$targetFilespec"
     else
-	"${CONVERT[@]}" "$sourceFilespec" \
+	if "${CONVERT[@]}" "$sourceFilespec" \
 	    ${filter:+-filter "$filter"} -resize "${geometry:-$IMAGERESIZE_GEOMETRY}" -define png:compression-level=9 \
-	    "$targetFilespec" && : ${status:=0} || status=$?
+	    "$targetFilespec"
+	then
+	    : ${status:=0}
+	    printf '%s\n' "$targetFilespec"
+	else
+	    status=$?
+	fi
     fi
 done
 exit ${status:-99}
