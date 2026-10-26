@@ -1,5 +1,7 @@
 #!/bin/bash
 
+${DEBUG:+eval $(debugtrace -o $- -- "$@")}
+
 : ${PDF_ADDSIGNATURE_EXT:=signed}
 : ${PDF_ADDSIGNATURE_FILESPEC:="${XDG_CONFIG_HOME:-${HOME}/.config}/signature.png"}
 : ${PDF_ADDSIGNATURE_DPI_SCALE:=50}	# Scaling factor of the rendered signature layer; smaller results in smaller file sizes.
@@ -110,6 +112,7 @@ $((height * PDF_ADDSIGNATURE_SIGNATURE_SCALE / 100 * PDF_ADDSIGNATURE_DPI_SCALE 
     printf "Info: Placing signature at %s\n" "${geometry}"
 fi
 
+${DEBUG:+eval $(debugtrace --point main -o $- --)}
 typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
 status=0
 for pdf
