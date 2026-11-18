@@ -1,0 +1,174 @@
+#!/bin/bash
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[--brightness -100..+100] [--contrast -100..+100|auto|stretch] [--saturation 0..200] [--hue 0..200] [--gamma 0..1.0..|auto] [--black-and-white|--grayscale] [--flip] [--mirror] [--adaptive-blur SIGMA|--blur SIGMA] [--effect charcoal 0..~10|edge RADIUS|emboss SIGMA|paint RADIUS|polaroid -15..+15|posterize COLOR-LEVELS-PER-CHANNEL|sketch RADIUS|vignette] [-f|--force] IMAGE-FILE[.orig].(jpg|png) [...] [-?|-h|--help]"
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Adjust brightness / color / contrast of the original IMAGE-FILE.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --brightness -100..+100
+			Adjust brightness; default is 0 (no change).
+    --contrast -100..+100|auto|stretch
+			Adjust contrast; default is 0 (no change).
+    --saturation 0..200
+			Adjust the amount of color in an image. For example, 0
+			produce a grayscale image, while a large value such as
+			200 produce a very colorful, 'cartoonish' color.
+    --hue 0..200
+			"Rotate" the colors within the image. For example, 50
+			results in a counter-clockwise rotation of 90, mapping
+			red shades to purple, and so on. A value of either 0 or
+			200 results in a complete 180 degree rotation of the
+			image.
+    --gamma 0..1.0..|auto
+			Apply gamma correction.
+    --black-and-white
+			Transform the image to just black and white pixels.
+    --grayscale		Convert image to grayscale.
+    --flip		Flip image vertically.
+    --mirror		Flip image horizontally.
+    --adaptive-blur SIGMA
+			Blur pixels, with decreasing effect near edges.
+    --blur SIGMA	Blur pixels.
+    --effect charcoal 0..~10
+			Simulate a charcoal drawing.
+    --effect edge RADIUS
+			Detect edges within an image.
+    --effect emboss SIGMA
+			Emboss an image.
+    --effect paint RADIUS
+			Simulate an oil painting.
+    --effect polaroid -15..+15
+			Simulate a Polaroid picture.
+    --effect posterize COLOR-LEVELS-PER-CHANNEL (~2..15)
+			Reduce the image to a limited number of color levels per
+			channel.
+    --effect sketch RADIUS
+			Simulate a pencil sketch.
+    --effect vignette	Soften the edges of the image.
+
+    --force|-f		Also process files where the target already exists; by
+			default, only files that have not yet been resized
+			are processed.
+HELPTEXT
+}
+
+isForce=
+brightness=
+contrast=
+saturation=
+hue=
+typeset -a convertArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--brightness)	shift; brightness="${1:?}"; shift;;
+	--contrast)	shift
+			case "$1" in
+			    auto)	convertArgs+=(-auto-level);;
+			    stretch)	convertArgs+=(-contrast-stretch 0);;
+			    *)		contrast="${1:?}";;
+			esac; shift
+			;;
+	--saturation)	shift; saturation="${1:?}"; shift;;
+	--hue)		shift; hue="${1:?}"; shift;;
+	--gamma)	shift
+			case "$1" in
+			    auto)	convertArgs+=(-auto-gamma);;
+			    *)		convertArgs+=(-gamma "${1:?}");;
+			esac; shift
+			;;
+	--grayscale)	shift; convertArgs+=(-colorspace Gray);;
+	--black-and-white)
+			shift; convertArgs+=(-monochrome);;
+	--invert)	shift; convertArgs+=(-negate);;
+	--flip)		shift; convertArgs+=(-flip);;
+	--mirror)	shift; convertArgs+=(-flop);;
+	--adaptive-blur)
+			shift; convertArgs+=(-adaptive-blur "0x${1:?}"); shift;;
+	--blur)		shift; convertArgs+=(-gaussian-blur "0x${1:?}"); shift;;
+	--effect)	shift
+			case "$1" in
+			    charcoal|edge|frame|paint|polaroid|posterize|sketch)
+					convertArgs+=(-"$1" "${2:?}"); shift; shift;;
+			    emboss)	convertArgs+=(-emboss "0x${2:?}"); shift; shift;;
+			    vignette)	convertArgs+=(-vignette '0x100+1%+1%'); shift;;
+			    *)		{ echo "ERROR: Unknown effect \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+			esac
+			;;
+
+	--force|-f)	shift; isForce=t;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+if [ -n "$brightness" -o -n "$contrast" ]; then
+    convertArgs+=(-brightness-contrast "${brightness:-0}x${contrast:-0}")
+fi
+if [ -n "$saturation" -o -n "$hue" ]; then
+    convertArgs+=(-modulate "100,${saturation:-100},${hue:-100}")
+fi
+
+typeset -a CONVERT=(convert); [ -n "$DEBUG" ] && CONVERT=(debugcommand --for convert -- "${CONVERT[@]}")
+status=
+lastSourceFilespec=
+for filespec
+do
+    case "$filespec" in
+	*.orig.*)
+	    sourceFilespec="$filespec"
+	    targetFilespec="${filespec/.orig./.}"
+	    ;;
+	*)  sourceFilespec="$(fileExtension --single --splice .orig "$filespec")"
+	    targetFilespec="$filespec"
+	    if [ ! -e "$sourceFilespec" ]; then
+		printf >&2 'Creating original from %s\n' "$filespec"
+		mv -- "$filespec" "$sourceFilespec" || { status=$?; continue; }
+	    fi
+	    ;;
+    esac
+    if [ "$sourceFilespec" = "$lastSourceFilespec" ]; then
+	# Don't process twice when both FILE.EXT and FILE.orig.EXT are passed.
+	continue
+    fi; lastSourceFilespec="$sourceFilespec"
+
+    if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
+	printf >&2 'Skipping existing %s\n' "$targetFilespec"
+    else
+	if "${CONVERT[@]}" "$sourceFilespec" \
+	    "${convertArgs[@]}" -define png:compression-level=9 \
+	    "$targetFilespec"
+	then
+	    : ${status:=0}
+	    printf '%s\n' "$targetFilespec"
+	else
+	    status=$?
+	fi
+    fi
+done
+exit ${status:-99}
