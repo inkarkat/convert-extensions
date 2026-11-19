@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--horizontal|--vertical|--tile COLUMNSxROWS] [-f|--force] [-t|--to TARGET-IMAGE-FILE[.orig].(jpg|png)] IMAGE-FILE [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--horizontal|--vertical|--tile COLUMNSxROWS] [--padding PADDING] [-f|--force] [-t|--to TARGET-IMAGE-FILE[.orig].(jpg|png)] IMAGE-FILE [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -29,6 +29,7 @@ HELPDESCRIPTION
     --vertical		Combine IMAGE-FILE(s) vertically (i.e. top to bottom).
     --tile COLUMNSxROWS	Combine IMAGE-FILE(s) in a COLUMNSxROWS grid; e.g. 2x3
 			for 2 columns and 3 rows.
+    --padding PADDING	Use PADDING pixels between the images; default is 0.
     --force|-f		Also process files where the target already exists; by
 			default, only files that have not yet been resized
 			are processed.
@@ -42,6 +43,7 @@ HELPTEXT
 isForce=
 magickCommand=convert
 typeset -a magickOperators=(+append)
+offset=
 targetFilespec=
 while [ $# -ne 0 ]
 do
@@ -49,6 +51,7 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--horizontal)	shift; magickOperators=(+append);;
 	--vertical)	shift; magickOperators=(-append);;
+	--offset)	shift; offset="${1:?}"; shift;;
 	--tile)		shift; magickOperators=(-tile "${1:?}"); shift; magickCommand=montage;;
 	--force|-f)	shift; isForce=t;;
 	--to|-t)	shift; targetFilespec="${1:?}"; shift;;
@@ -60,6 +63,18 @@ done
 if [ $# -eq 0 ]; then
     printUsage "$0" >&2
     exit 2
+fi
+
+if [ -n "$offset" ]; then
+    if [ "$magickCommand" != 'convert' ]; then
+	echo 'ERROR: --offset can only be used with --horizontal or --vertical, not with --tile.'
+	echo
+	printUsage "$0"
+	exit 2
+    fi  >&2
+    # smush ignores transparency. Any empty space will be filled with the
+    # -background color. Choose transparent white to have transparent gaps.
+    magickOperators=(-background 'rgba(255, 255, 255, 0.0)' "${magickOperators[0]/append/smush}" "$offset")
 fi
 
 if [ -z "$targetFilespec" ]; then
