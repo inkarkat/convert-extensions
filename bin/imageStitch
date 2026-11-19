@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--horizontal|--vertical|--tile COLUMNSxROWS] [--padding PADDING] [-f|--force] [-t|--to TARGET-IMAGE-FILE[.orig].(jpg|png)] IMAGE-FILE [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--horizontal|--vertical|--tile COLUMNSxROWS] [--padding PADDING] [-f|--force] [-d|--destination TARGETDIR|-o|--to TARGET-IMAGE-FILE[.orig].(jpg|png)] IMAGE-FILE [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -33,7 +33,10 @@ HELPDESCRIPTION
     --force|-f		Also process files where the target already exists; by
 			default, only files that have not yet been resized
 			are processed.
-    --to|-t TARGET-IMAGE-FILE[.orig].(jpg|png)
+    --destination|-d TARGETDIR
+			Write the combined image to the specified directory
+			(with the synthesized name).
+    --to|-o TARGET-IMAGE-FILE[.orig].(jpg|png)
 			Write the combined image to TARGET-IMAGE-FILE; by
 			default, a name is synthesized from the passed
 			IMAGE-FILE(s).
@@ -45,6 +48,7 @@ magickCommand=convert
 typeset -a magickOperators=(+append)
 geometry='+0+0'
 offset=
+targetDirspec=
 targetFilespec=
 while [ $# -ne 0 ]
 do
@@ -55,7 +59,15 @@ do
 	--offset)	shift; offset="${1:?}"; shift;;
 	--tile)		shift; magickOperators=(-tile "${1:?}"); shift; magickCommand=montage;;
 	--force|-f)	shift; isForce=t;;
-	--to|-t)	shift; targetFilespec="${1:?}"; shift;;
+	--destination|-d)
+			shift
+			if [ ! -d "$1" ]; then
+			    printf >&2 "ERROR: Target directory '%s' does not exist\\n" "$1"
+			    exit 2
+			fi
+			targetDirspec="${1:?}"; shift
+			;;
+	--to|-o)	shift; targetFilespec="${1:?}"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -87,7 +99,7 @@ if [ -z "$targetFilespec" ]; then
 	names+=("${name/.orig./.}")
     done
 
-    targetFilespec="$(dirname -- "$1")/$(combineNames --range --exclude-ranged -- "${names[@]}")" \
+    targetFilespec="${targetDirspec:-$(dirname -- "$1")}/$(combineNames --range --exclude-ranged -- "${names[@]}")" \
 	|| exit 3
 fi
 
