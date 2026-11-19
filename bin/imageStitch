@@ -43,6 +43,7 @@ HELPTEXT
 isForce=
 magickCommand=convert
 typeset -a magickOperators=(+append)
+geometry='+0+0'
 offset=
 targetFilespec=
 while [ $# -ne 0 ]
@@ -66,15 +67,16 @@ if [ $# -eq 0 ]; then
 fi
 
 if [ -n "$offset" ]; then
-    if [ "$magickCommand" != 'convert' ]; then
-	echo 'ERROR: --offset can only be used with --horizontal or --vertical, not with --tile.'
-	echo
-	printUsage "$0"
-	exit 2
-    fi  >&2
-    # smush ignores transparency. Any empty space will be filled with the
-    # -background color. Choose transparent white to have transparent gaps.
-    magickOperators=(-background 'rgba(255, 255, 255, 0.0)' "${magickOperators[0]/append/smush}" "$offset")
+    case "$magickCommand" in
+	convert)
+	    # smush ignores transparency. Any empty space will be filled with the
+	    # -background color. Choose transparent white to have transparent gaps.
+	    magickOperators=("${magickOperators[0]/append/smush}" "$offset")
+	    ;;
+	montage)
+	    geometry="+${offset}+${offset}";;
+	*)  printf >&2 'ASSERT: Unhandled magickCommand: %s\n' "$magickCommand"; exit 3;;
+    esac
 fi
 
 if [ -z "$targetFilespec" ]; then
@@ -127,7 +129,8 @@ if [ ! "$isForce" ] && [ -e "$targetFilespec" ]; then
     exit 99
 else
     "${MAGICK_COMMAND[@]}" "${uniqueSourceFilespecs[@]}" \
-	    "${magickOperators[@]}" -geometry +0+0 -define png:compression-level=9 \
+	    -background 'rgba(255, 255, 255, 0.0)' \
+	    "${magickOperators[@]}" -geometry "$geometry" -define png:compression-level=9 \
 	    "$targetFilespec" \
 	&& printf '%s\n' "$targetFilespec"
 fi
